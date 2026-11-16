@@ -51,6 +51,8 @@ Open Supabase Studio at `http://127.0.0.1:54323`. Stop the local stack when fini
 npx supabase@latest stop
 ```
 
+`db reset` is destructive: it deletes local data and replays every migration. Use it only when you intentionally want a clean database.
+
 ## Documentation
 
 - [Initial architecture](docs/architecture.md)

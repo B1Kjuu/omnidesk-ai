@@ -1,0 +1,1 @@
+-- Seed data will be added only when the first local development fixture is defined.

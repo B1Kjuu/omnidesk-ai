@@ -4,7 +4,7 @@ OmniDesk AI is a multi-tenant customer-support platform that answers from a busi
 
 ## Status
 
-Architecture approved. Application implementation has not started.
+Architecture approved. The initial application shell is in place; database implementation is the next milestone.
 
 ## MVP path
 
@@ -27,7 +27,29 @@ The provider, embedding dimension, and document extraction library will be selec
 
 ## Local development
 
-The app shell and dependencies have not been created yet. The next milestone is to choose the initial Next.js setup and add the first health-check page.
+Install dependencies and run the initial shell with:
+
+```powershell
+npm install
+npm run dev
+```
+
+The next milestone is to apply and test the database schema and RLS policies against a local or approved Supabase project.
+
+### Local Supabase
+
+Docker Desktop must be running. From the repository root:
+
+```powershell
+npx supabase@latest start
+npx supabase@latest db reset
+```
+
+Open Supabase Studio at `http://127.0.0.1:54323`. Stop the local stack when finished with:
+
+```powershell
+npx supabase@latest stop
+```
 
 ## Documentation
 

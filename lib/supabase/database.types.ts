@@ -253,6 +253,11 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
+            "create_knowledge_source":
+{ Args: { "source_content": string,"source_name": string,"source_type": string,"target_organization_id": string }; Returns: {
+              "source_id": string
+            }[]
+                           },
             "create_organization":
 { Args: { "organization_name": string }; Returns: {
               "created_at": string,"id": string,"name": string

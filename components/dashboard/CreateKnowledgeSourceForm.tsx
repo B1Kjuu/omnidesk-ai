@@ -14,6 +14,7 @@ export default function CreateKnowledgeSourceForm({ organizations }: { organizat
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [name, setName] = useState("");
   const [sourceType, setSourceType] = useState("faq");
+  const [content, setContent] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,18 +25,11 @@ export default function CreateKnowledgeSourceForm({ organizations }: { organizat
 
     try {
       const supabase = createClient();
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-
-      if (userError || !userData.user) {
-        setMessage("Your session has expired. Please sign in again.");
-        return;
-      }
-
-      const { error } = await supabase.from("knowledge_sources").insert({
-        organization_id: organizationId,
-        name: name.trim(),
+      const { error } = await supabase.rpc("create_knowledge_source", {
+        target_organization_id: organizationId,
+        source_name: name.trim(),
         source_type: sourceType,
-        created_by: userData.user.id,
+        source_content: content.trim(),
       });
 
       if (error) {
@@ -44,6 +38,7 @@ export default function CreateKnowledgeSourceForm({ organizations }: { organizat
       }
 
       setName("");
+      setContent("");
       router.refresh();
     } finally {
       setIsSubmitting(false);
@@ -55,17 +50,27 @@ export default function CreateKnowledgeSourceForm({ organizations }: { organizat
   }
 
   return (
-    <form className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]" onSubmit={submit}>
+    <form className="mt-6 grid gap-3" onSubmit={submit}>
       <label className="sr-only" htmlFor="knowledge-source-name">Knowledge source name</label>
       <input
         id="knowledge-source-name"
-        className="min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 outline-none ring-amber-500 focus:ring-2"
+        className="rounded-lg border border-slate-300 px-3 py-2.5 outline-none ring-amber-500 focus:ring-2"
         placeholder="Source name, e.g. Refund FAQ"
         required
         maxLength={255}
         value={name}
         onChange={(event) => setName(event.target.value)}
       />
+      <label className="sr-only" htmlFor="knowledge-source-content">Knowledge source content</label>
+      <textarea
+        id="knowledge-source-content"
+        className="min-h-28 rounded-lg border border-slate-300 px-3 py-2.5 outline-none ring-amber-500 focus:ring-2"
+        placeholder="Write the FAQ or document text the AI should use..."
+        required
+        value={content}
+        onChange={(event) => setContent(event.target.value)}
+      />
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
       <label className="sr-only" htmlFor="knowledge-source-organization">Organization</label>
       <select
         id="knowledge-source-organization"
@@ -95,7 +100,8 @@ export default function CreateKnowledgeSourceForm({ organizations }: { organizat
       >
         {isSubmitting ? "Adding..." : "Add source"}
       </button>
-      {message && <p className="text-sm text-rose-700 sm:col-span-4" role="alert">{message}</p>}
+      </div>
+      {message && <p className="text-sm text-rose-700" role="alert">{message}</p>}
     </form>
   );
 }

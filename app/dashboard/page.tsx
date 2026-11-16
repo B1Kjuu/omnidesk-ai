@@ -3,6 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import CreateOrganizationForm from "@/components/dashboard/CreateOrganizationForm";
 import CreateConversationForm from "@/components/dashboard/CreateConversationForm";
+import CreateKnowledgeSourceForm from "@/components/dashboard/CreateKnowledgeSourceForm";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "./SignOutButton";
 
@@ -33,6 +34,15 @@ export default async function DashboardPage() {
 
   if (conversationsError) {
     throw new Error(`Could not load conversations: ${conversationsError.message}`);
+  }
+
+  const { data: knowledgeSources, error: knowledgeSourcesError } = await supabase
+    .from("knowledge_sources")
+    .select("id, name, source_type, status, created_at, organizations(name)")
+    .order("created_at", { ascending: false });
+
+  if (knowledgeSourcesError) {
+    throw new Error(`Could not load knowledge sources: ${knowledgeSourcesError.message}`);
   }
 
   return (
@@ -92,6 +102,27 @@ export default async function DashboardPage() {
             <p className="mt-6 rounded-xl bg-slate-50 p-5 text-slate-600">No conversations yet.</p>
           )}
           <CreateConversationForm organizations={organizations} />
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold text-slate-950">Knowledge sources</h2>
+          <p className="mt-2 text-slate-600">Add FAQs and documents that the AI will use for grounded answers.</p>
+          {knowledgeSources.length > 0 ? (
+            <ul className="mt-6 space-y-3">
+              {knowledgeSources.map((source) => (
+                <li key={source.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4">
+                  <div>
+                    <p className="font-medium text-slate-900">{source.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">{source.organizations?.name ?? "Unknown organization"} · {source.source_type}</p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">{source.status}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-6 rounded-xl bg-slate-50 p-5 text-slate-600">No knowledge sources yet.</p>
+          )}
+          <CreateKnowledgeSourceForm organizations={organizations} />
         </section>
       </div>
     </main>

@@ -31,7 +31,8 @@ export const getDesk = cache(async () => {
   }
 
   const [organizationsResult, conversationsResult, ticketsResult, workflowEventsResult, knowledgeSourcesResult, knowledgeChunksResult] = await Promise.all([
-    supabase.from("organizations").select("id, name").order("created_at", { ascending: true }),
+    // "*" rather than naming slug, so the dashboard keeps working before the slug migration is applied.
+    supabase.from("organizations").select("*").order("created_at", { ascending: true }),
     supabase
       .from("conversations")
       .select("id, organization_id, status, created_at, customers(name, email), messages(id, sender_type, content, created_at, source_references)")
@@ -61,7 +62,12 @@ export const getDesk = cache(async () => {
     }
   }
 
-  const organizations = organizationsResult.data ?? [];
+  const organizations = (organizationsResult.data ?? []).map((organization) => ({
+    id: organization.id,
+    name: organization.name,
+    // Short public link, e.g. /chat/sunrise-outfitters; falls back to the ID link.
+    chatPath: `/chat/${organization.slug || organization.id}`,
+  }));
   const conversations = conversationsResult.data ?? [];
   const tickets = ticketsResult.data ?? [];
   const workflowEvents = workflowEventsResult.data ?? [];
@@ -134,7 +140,7 @@ export const getDesk = cache(async () => {
     sources: sourceItems,
     workflowEvents,
     failedEvents,
-    chatHref: organizations.length > 0 ? `/chat/${organizations[0].id}` : null,
+    chatHref: organizations.length > 0 ? organizations[0].chatPath : null,
   };
 });
 

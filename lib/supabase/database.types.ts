@@ -189,14 +189,14 @@ isOneToOne: false
                   ]
                 },"organizations": {
                   Row: {
-                    "created_at": string,"created_by": string,"id": string,"name": string,"notification_email": string | null
+                    "created_at": string,"created_by": string,"id": string,"name": string,"notification_email": string | null,"slug": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"created_by": string,"id"?: string,"name": string,"notification_email"?: string | null
+                    "created_at"?: string,"created_by": string,"id"?: string,"name": string,"notification_email"?: string | null,"slug"?: string
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string,"notification_email"?: string | null
+                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string,"notification_email"?: string | null,"slug"?: string
                   }
                   Relationships: [
 

@@ -4,6 +4,7 @@ import CreateOrganizationForm from "@/components/dashboard/CreateOrganizationFor
 import NotificationEmailForm from "@/components/dashboard/NotificationEmailForm";
 import { PageTitle } from "@/components/dashboard/SectionHeader";
 import Icon from "@/components/ui/Icon";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { getDesk } from "@/lib/dashboard/getDesk";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,11 +44,11 @@ export default async function OrganizationsPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-lg font-bold">{organization.name}</p>
-                  <p className="truncate font-mono text-xs text-ink-2">/chat/{organization.id}</p>
+                  <p className="truncate font-mono text-xs text-ink-2">{publicOrigin()?.replace(/^https?:\/\//, "") ?? ""}{organization.chatPath}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <CopyLinkButton path={`/chat/${organization.id}`} />
-                  <Link className="btn btn-secondary py-1.5 text-sm no-underline" href={`/chat/${organization.id}`} target="_blank">
+                  <CopyLinkButton path={organization.chatPath} origin={publicOrigin()} />
+                  <Link className="btn btn-secondary py-1.5 text-sm no-underline" href={organization.chatPath} target="_blank">
                     Open chat page
                     <Icon name="external" className="size-3.5" />
                   </Link>

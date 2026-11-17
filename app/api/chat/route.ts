@@ -1,3 +1,4 @@
+import { describeError } from "@/lib/server/describeError";
 import { renderEscalationEmail } from "@/lib/email/escalationEmail";
 import { clientKey, firstExceededLimit } from "@/lib/server/rateLimit";
 import { verifyTurnstile } from "@/lib/server/turnstile";
@@ -92,7 +93,8 @@ async function generateGroundedAnswer(question: string, context: string) {
   });
 
   if (!response.ok) {
-    console.error("Gemini request failed", response.status, await response.text());
+    // One string so the Sentry issue shows the status and Google's reason (e.g. 429 quota exceeded).
+    console.error(`Gemini request failed: HTTP ${response.status} ${(await response.text()).slice(0, 500)}`);
     return null;
   }
 
@@ -165,7 +167,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    console.error("Could not create public conversation", error);
+    console.error(`Could not create public conversation: ${describeError(error)}`);
     return Response.json({ error: "We could not save your message." }, { status: 500 });
   }
 
@@ -181,7 +183,7 @@ export async function POST(request: Request) {
     .eq("organization_id", organizationId);
 
   if (chunksError) {
-    console.error("Could not retrieve knowledge chunks", chunksError);
+    console.error(`Could not retrieve knowledge chunks: ${describeError(chunksError)}`);
     return Response.json({ error: "We could not prepare an answer." }, { status: 500 });
   }
 
@@ -197,7 +199,7 @@ export async function POST(request: Request) {
     try {
       generatedAnswer = await generateGroundedAnswer(message, context);
     } catch (generationError) {
-      console.error("Could not generate Gemini answer", generationError);
+      console.error(`Could not generate Gemini answer: ${describeError(generationError)}`);
     }
     if (generatedAnswer && !isFollowUpFallback(generatedAnswer)) {
       answer = generatedAnswer;
@@ -223,7 +225,7 @@ export async function POST(request: Request) {
     });
 
     if (ticketError) {
-      console.error("Could not create escalation ticket", ticketError);
+      console.error(`Could not create escalation ticket: ${describeError(ticketError)}`);
       return Response.json({ error: "We could not create a support ticket." }, { status: 500 });
     }
 
@@ -234,7 +236,7 @@ export async function POST(request: Request) {
       .eq("organization_id", organizationId);
 
     if (escalationError) {
-      console.error("Could not mark conversation as escalated", escalationError);
+      console.error(`Could not mark conversation as escalated: ${describeError(escalationError)}`);
       return Response.json({ error: "We could not update the conversation status." }, { status: 500 });
     }
 
@@ -252,7 +254,7 @@ export async function POST(request: Request) {
     }).select("id").single();
 
     if (workflowEventError) {
-      console.error("Could not create escalation workflow event", workflowEventError);
+      console.error(`Could not create escalation workflow event: ${describeError(workflowEventError)}`);
       return Response.json({ error: "We could not queue the escalation workflow." }, { status: 500 });
     }
 
@@ -277,7 +279,7 @@ export async function POST(request: Request) {
         let notifyEmail = configuredRecipient;
         if (recipientError || !notifyEmail) {
           // Fallback keeps emails flowing even before the notification migration is applied.
-          if (recipientError) console.error("Notification recipient lookup failed, using creator email", recipientError);
+          if (recipientError) console.error(`Notification recipient lookup failed, using creator email: ${describeError(recipientError)}`);
           const creator = organization ? await admin.auth.admin.getUserById(organization.created_by) : null;
           notifyEmail = creator?.data.user?.email ?? null;
         }
@@ -318,7 +320,7 @@ export async function POST(request: Request) {
           .eq("id", workflowEvent.id);
       } catch (webhookError) {
         const errorMessage = webhookError instanceof Error ? webhookError.message : "Unknown n8n webhook error";
-        console.error("Could not deliver escalation workflow event", webhookError);
+        console.error(`Could not deliver escalation workflow event: ${describeError(webhookError)}`);
         await admin
           .from("workflow_events")
           .update({ status: "failed", last_error: errorMessage })
@@ -336,7 +338,7 @@ export async function POST(request: Request) {
   });
 
   if (assistantMessageError) {
-    console.error("Could not save assistant response", assistantMessageError);
+    console.error(`Could not save assistant response: ${describeError(assistantMessageError)}`);
     return Response.json({ error: "We could not save the assistant response." }, { status: 500 });
   }
 
@@ -350,7 +352,7 @@ export async function POST(request: Request) {
       .eq("organization_id", organizationId);
 
     if (sourceNamesError) {
-      console.error("Could not load knowledge source names", sourceNamesError);
+      console.error(`Could not load knowledge source names: ${describeError(sourceNamesError)}`);
     } else {
       sources = sourceRows.map((source) => source.name);
     }

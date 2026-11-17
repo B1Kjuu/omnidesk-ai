@@ -3,17 +3,23 @@ import { notFound } from "next/navigation";
 import ChatForm from "@/components/chat/ChatForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type Params = { params: Promise<{ organizationId: string }> };
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const slugPattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export const instant = false;
 
-export default async function CustomerChatPage({ params }: Params) {
+/** Accepts the short link (/chat/sunrise-outfitters) or the original ID link, so shared links never break. */
+export default async function CustomerChatPage({ params }: PageProps<"/chat/[handle]">) {
   await connection();
-  const { organizationId } = await params;
+  const { handle } = await params;
+  const value = decodeURIComponent(handle).toLowerCase();
+  const column = uuidPattern.test(value) ? "id" : slugPattern.test(value) && value.length <= 40 ? "slug" : null;
+  if (!column) notFound();
+
   const { data: organization, error } = await createAdminClient()
     .from("organizations")
     .select("id, name")
-    .eq("id", organizationId)
+    .eq(column, value)
     .maybeSingle();
 
   if (error) {

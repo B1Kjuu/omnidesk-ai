@@ -5,6 +5,7 @@ import SetupRoute from "@/components/dashboard/SetupRoute";
 import Icon from "@/components/ui/Icon";
 import LocalTime from "@/components/ui/LocalTime";
 import StatusTag from "@/components/ui/StatusTag";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { getDesk, plural } from "@/lib/dashboard/getDesk";
 
 export const instant = false;
@@ -111,8 +112,8 @@ export default async function OverviewPage() {
                 <li key={organization.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-rule py-3 first:border-t-0">
                   <p className="font-bold">{organization.name}</p>
                   <div className="flex items-center gap-1">
-                    <CopyLinkButton path={`/chat/${organization.id}`} />
-                    <Link className="btn btn-secondary py-1.5 text-sm no-underline" href={`/chat/${organization.id}`} target="_blank">
+                    <CopyLinkButton path={organization.chatPath} origin={publicOrigin()} />
+                    <Link className="btn btn-secondary py-1.5 text-sm no-underline" href={organization.chatPath} target="_blank">
                       Open
                       <Icon name="external" className="size-3.5" />
                     </Link>

@@ -13,5 +13,7 @@ Sentry.init({
   dataCollection: { userInfo: false, httpBodies: [] },
   // The chat route logs recoverable failures (Gemini down, n8n webhook failed, limiter offline)
   // with console.error; this turns each of them into a Sentry event instead of a buried log line.
-  integrations: [Sentry.captureConsoleIntegration({ levels: ["error"] })],
+  // serveTunnelIntegration answers the browser's tunnel requests (instrumentation-client.ts `tunnel: true`)
+  // and forwards them to this DSN only, so it can't be used as an open proxy.
+  integrations: [Sentry.captureConsoleIntegration({ levels: ["error"] }), Sentry.serveTunnelIntegration()],
 });

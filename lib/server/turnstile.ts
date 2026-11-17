@@ -1,3 +1,4 @@
+import { describeError } from "@/lib/server/describeError";
 import "server-only";
 
 /** The action the chat widgets render with (lib/useTurnstile.ts). */
@@ -56,7 +57,7 @@ export async function verifyTurnstile(token: string, remoteIp: string | null, re
       hostnames.has(outcome.hostname.toLowerCase())
     );
   } catch (error) {
-    console.error("Turnstile verification failed", error);
+    console.error(`Turnstile verification failed: ${describeError(error)}`);
     return false;
   }
 }

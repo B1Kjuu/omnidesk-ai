@@ -1,3 +1,4 @@
+import { describeError } from "@/lib/server/describeError";
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
@@ -26,7 +27,7 @@ export async function firstExceededLimit(admin: SupabaseClient<Database>, limits
         window_seconds: limit.windowSeconds,
       });
       if (error) {
-        console.error("Rate limiter unavailable, allowing request", error);
+        console.error(`Rate limiter unavailable, allowing request: ${describeError(error)}`);
         return null;
       }
       return data === false ? limit : null;

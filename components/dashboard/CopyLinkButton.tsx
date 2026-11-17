@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Icon from "@/components/ui/Icon";
 
-export default function CopyLinkButton({ path }: { path: string }) {
+/** Copies the public link. `origin` is the production domain; without it, the current address is used. */
+export default function CopyLinkButton({ path, origin }: { path: string; origin?: string | null }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(new URL(path, window.location.origin).toString());
+      await navigator.clipboard.writeText(new URL(path, origin || window.location.origin).toString());
       setState("copied");
     } catch {
       setState("failed");

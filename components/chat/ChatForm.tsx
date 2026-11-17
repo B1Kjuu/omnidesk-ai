@@ -20,7 +20,7 @@ export default function ChatForm({ organizationId }: { organizationId: string })
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ organizationId, name, email, message }),
       });
-      const result: { error?: string } = await response.json();
+      const result: { answer?: string; error?: string } = await response.json();
 
       if (!response.ok) {
         setStatus(result.error ?? "We could not send your message.");
@@ -30,7 +30,7 @@ export default function ChatForm({ organizationId }: { organizationId: string })
       setName("");
       setEmail("");
       setMessage("");
-      setStatus("Thanks. Your message has been sent to the support team.");
+      setStatus(result.answer ?? "Thanks. Your message has been sent to the support team.");
     } catch {
       setStatus("We could not reach the support service. Please try again.");
     } finally {

@@ -253,6 +253,11 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
+            "update_ticket":
+{ Args: { "new_priority": string,"new_status": string,"target_ticket_id": string }; Returns: {
+              "conversation_status": string,"ticket_id": string
+            }[]
+                           },
             "create_knowledge_source":
 { Args: { "source_content": string,"source_name": string,"source_type": string,"target_organization_id": string }; Returns: {
               "source_id": string

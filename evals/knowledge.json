@@ -1,0 +1,30 @@
+{
+  "organization": "Harbor & Pine Outfitters (fictional)",
+  "sources": [
+    {
+      "name": "Refund FAQ",
+      "type": "faq",
+      "content": "Q: How long do refunds take?\nA: Approved refunds are returned to your original payment method within 5 to 7 business days.\n\nQ: Can I get a refund after 30 days?\nA: No. Refund requests must be made within 30 days of delivery. After that we can offer store credit for unused items.\n\nQ: Are shipping fees refunded?\nA: Original shipping fees are refunded only if the item arrived damaged or we sent the wrong item."
+    },
+    {
+      "name": "Shipping policy",
+      "type": "text",
+      "content": "We ship within the Philippines, Singapore, and Japan. Orders placed before 2 PM Manila time ship the same business day.\n\nMetro Manila deliveries arrive in 1 to 2 business days. Visayas and Mindanao deliveries, including Cebu and Davao, take 3 to 5 business days. Singapore and Japan take 5 to 8 business days.\n\nShipping is free for orders over 2,500 pesos within the Philippines. You can change the delivery address until the order is packed; after that, contact us and we will try to reroute it with the courier."
+    },
+    {
+      "name": "Returns and exchanges",
+      "type": "faq",
+      "content": "Q: Can I exchange an item for a different size?\nA: Yes. Exchanges for a different size or color are free within 30 days, as long as the item is unworn and has its tags.\n\nQ: My item arrived damaged. What do I do?\nA: Send a photo of the damage within 7 days of delivery. We will send a replacement at no cost, or a full refund if it is out of stock.\n\nQ: Can I return sale items?\nA: Sale items marked final sale cannot be returned or exchanged."
+    },
+    {
+      "name": "Product care guide",
+      "type": "text",
+      "content": "Our waxed canvas jackets should not be machine washed. Spot clean with cold water and a soft brush, and re-wax once a season to keep them water resistant.\n\nMerino wool base layers can be machine washed on a cold wool cycle and laid flat to dry. Do not tumble dry merino, as it will shrink.\n\nAll leather boots come with a one-year warranty against stitching and sole defects. The warranty does not cover normal wear or water damage from not conditioning the leather."
+    },
+    {
+      "name": "Payments and discounts",
+      "type": "faq",
+      "content": "Q: What payment methods do you accept?\nA: We accept Visa, Mastercard, GCash, Maya, and cash on delivery within Metro Manila.\n\nQ: Do you have a student discount?\nA: Yes. Students get 10% off full-price items after verifying a valid school ID at checkout.\n\nQ: Can I use two discount codes on one order?\nA: No. Only one discount code can be applied per order."
+    }
+  ]
+}

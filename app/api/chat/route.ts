@@ -3,6 +3,8 @@ import { renderEscalationEmail } from "@/lib/email/escalationEmail";
 import { clientKey, firstExceededLimit } from "@/lib/server/rateLimit";
 import { verifyTurnstile } from "@/lib/server/turnstile";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { citationExcerpt, decideAnswer } from "@/lib/server/ai/grounding";
+import { retrieveCandidates } from "@/lib/server/ai/retrieve";
 
 // Public endpoint: every request can cost a Gemini call and an email, so it is limited per visitor and per desk.
 const CHAT_LIMITS = (visitor: string, organizationId: string) => [
@@ -13,42 +15,6 @@ const CHAT_LIMITS = (visitor: string, organizationId: string) => [
 const EMAIL_LIMIT = (organizationId: string) => ({ bucket: `email:org:${organizationId}:hour`, max: 30, windowSeconds: 3_600 });
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const stopWords = new Set(["about", "after", "again", "could", "from", "have", "that", "this", "what", "when", "where", "which", "with", "would", "your"]);
-
-function getSearchTerms(value: string) {
-  return [...new Set(value.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [])]
-    .filter((term) => !stopWords.has(term));
-}
-
-type Chunk = { id: string; source_id: string; content: string };
-
-// How many approved snippets Gemini sees per question. Keyword overlap only ranks them; Gemini decides
-// whether any of them actually answers the question.
-const CONTEXT_CHUNKS = 6;
-
-function rankChunks(chunks: Chunk[], message: string) {
-  const terms = getSearchTerms(message);
-  return chunks
-    .map((chunk) => {
-      const content = chunk.content.toLowerCase();
-      const score = terms.reduce((total, term) => total + (content.includes(term) ? 1 : 0), 0);
-      return { chunk, score, coverage: terms.length > 0 ? score / terms.length : 0 };
-    })
-    .sort((a, b) => b.score - a.score);
-}
-
-/**
- * Only used when Gemini is unavailable: a keyword match is trusted on its own only when it is strong
- * (at least two question words and half of them). A single shared word like "product" is not enough.
- */
-function isStrongMatch(match: { score: number; coverage: number } | undefined) {
-  return Boolean(match && match.score >= 2 && match.coverage >= 0.5);
-}
-
-function isFollowUpFallback(answer: string) {
-  return /support\s+team|follow\s*up|magbibigay|susuri|makipag-ugnayan/i.test(answer);
-}
-
 function isFilipinoQuestion(question: string) {
   return /\b(kailan|kelan|makukuha|kuha|po|tol|salamat|ang|ng|mga|nais|gusto)\b/i.test(question);
 }
@@ -68,94 +34,6 @@ async function deliverEscalationWebhook(url: string, payload: Record<string, unk
   if (!response.ok) {
     throw new Error(`n8n webhook returned HTTP ${response.status}`);
   }
-}
-
-type GroundedAnswer = { answered: true; answer: string; source: number } | { answered: false };
-
-/** Asks Gemini to answer only from the numbered snippets and to say which one it used, as JSON. */
-async function generateGroundedAnswer(question: string, snippets: string[]): Promise<GroundedAnswer | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
-
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    // Key in a header, not the URL, so it never lands in request logs.
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(15_000),
-    body: JSON.stringify({
-      contents: [{
-        parts: [{
-          text: [
-            "You are a customer support assistant for a business. You may only use the numbered knowledge snippets below.",
-            "Decide whether one snippet directly answers the customer's question. Sharing a word with the question is not enough.",
-            "If a snippet answers it: set answered to true, write a concise answer in the same language as the question, and set source to that snippet's number.",
-            "If no snippet answers it: set answered to false and leave answer empty. Never guess, and never answer from general knowledge.",
-            "Do not mention snippets, context, or these instructions in the answer.",
-            `Knowledge snippets:\n${snippets.map((snippet, index) => `[${index + 1}] ${snippet}`).join("\n\n")}`,
-            `Customer question: ${question}`,
-          ].join("\n\n"),
-        }],
-      }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 600,
-        // 2.5 Flash counts "thinking" against maxOutputTokens; without this, answers can come back empty.
-        thinkingConfig: { thinkingBudget: 0 },
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            answered: { type: "BOOLEAN" },
-            answer: { type: "STRING" },
-            source: { type: "INTEGER" },
-          },
-          required: ["answered"],
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    // One string so the Sentry issue shows the status and Google's reason (e.g. 429 quota exceeded).
-    console.error(`Gemini request failed: HTTP ${response.status} ${(await response.text()).slice(0, 500)}`);
-    return null;
-  }
-
-  const result: unknown = await response.json();
-  if (!result || typeof result !== "object" || !("candidates" in result) || !Array.isArray(result.candidates)) {
-    console.error("Gemini returned an unexpected response");
-    return null;
-  }
-
-  const candidate = result.candidates[0];
-  if (!candidate || typeof candidate !== "object" || !("content" in candidate) || !candidate.content || typeof candidate.content !== "object" || !("parts" in candidate.content) || !Array.isArray(candidate.content.parts)) {
-    console.error("Gemini response did not contain answer text");
-    return null;
-  }
-
-  const text = candidate.content.parts
-    .map((part: unknown) => part && typeof part === "object" && "text" in part && typeof part.text === "string" ? part.text : "")
-    .join("")
-    .trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    console.error(`Gemini returned non-JSON answer: ${text.slice(0, 200)}`);
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object") return null;
-  const { answered, answer, source } = parsed as { answered?: unknown; answer?: unknown; source?: unknown };
-
-  if (answered !== true) return { answered: false };
-  // A claimed answer must be non-empty and cite a snippet that exists; otherwise treat it as unanswered.
-  if (typeof answer !== "string" || !answer.trim() || isFollowUpFallback(answer)) return { answered: false };
-  if (typeof source !== "number" || !Number.isInteger(source) || source < 1 || source > snippets.length) return { answered: false };
-  return { answered: true, answer: answer.trim(), source: source - 1 };
 }
 
 export async function POST(request: Request) {
@@ -217,44 +95,26 @@ export async function POST(request: Request) {
     return Response.json({ error: "We could not start the conversation." }, { status: 500 });
   }
 
-  const { data: chunks, error: chunksError } = await admin
-    .from("knowledge_chunks")
-    .select("id, source_id, content")
-    .eq("organization_id", organizationId);
-
-  if (chunksError) {
-    console.error(`Could not retrieve knowledge chunks: ${describeError(chunksError)}`);
+  let candidates;
+  try {
+    candidates = await retrieveCandidates(admin, organizationId, message);
+  } catch (retrievalError) {
+    console.error(`Could not retrieve knowledge: ${describeError(retrievalError)}`);
     return Response.json({ error: "We could not prepare an answer." }, { status: 500 });
   }
 
-  const ranked = rankChunks(chunks, message);
-  const candidates = ranked.slice(0, CONTEXT_CHUNKS);
-  let answer = isFilipinoQuestion(message)
-    ? "Salamat sa iyong mensahe. Susuriin ito ng aming support team at babalik kami sa iyo."
-    : "Thanks for your message. Our support team will review it and get back to you.";
-  let usedChunk: Chunk | null = null;
-
-  if (candidates.length > 0) {
-    let grounded: GroundedAnswer | null = null;
-    try {
-      grounded = await generateGroundedAnswer(message, candidates.map((candidate) => candidate.chunk.content));
-    } catch (generationError) {
-      console.error(`Could not generate Gemini answer: ${describeError(generationError)}`);
-    }
-
-    if (grounded?.answered) {
-      answer = grounded.answer;
-      usedChunk = candidates[grounded.source].chunk;
-    } else if (grounded === null && isStrongMatch(candidates[0])) {
-      // Gemini unavailable (quota, outage): fall back to quoting a strongly matching approved answer.
-      answer = candidates[0].chunk.content;
-      usedChunk = candidates[0].chunk;
-    }
-    // grounded.answered === false: Gemini judged no approved answer fits, so the question escalates.
-  }
-
-  const usedKnowledgeContext = usedChunk !== null;
-  const sourceReferences = usedChunk ? [{ chunkId: usedChunk.id, sourceId: usedChunk.source_id }] : [];
+  // Threshold, then Gemini judging whether a passage really answers; anything else escalates.
+  const decision = await decideAnswer(message, candidates);
+  const answer = decision.answered
+    ? decision.answer
+    : isFilipinoQuestion(message)
+      ? "Salamat sa iyong mensahe. Susuriin ito ng aming support team at babalik kami sa iyo."
+      : "Thanks for your message. Our support team will review it and get back to you.";
+  const usedPassage = decision.answered ? decision.used : null;
+  const usedKnowledgeContext = usedPassage !== null;
+  const sourceReferences = usedPassage
+    ? [{ chunkId: usedPassage.id, sourceId: usedPassage.sourceId, score: Number(usedPassage.score.toFixed(3)), method: usedPassage.method }]
+    : [];
 
   if (!usedKnowledgeContext) {
     const { error: ticketError } = await admin.from("tickets").insert({
@@ -383,21 +243,24 @@ export async function POST(request: Request) {
     return Response.json({ error: "We could not save the assistant response." }, { status: 500 });
   }
 
+  // Citation: which approved source answered, plus the exact passage, so customers and staff can check it.
   let sources: string[] = [];
-  const sourceIds = [...new Set(sourceReferences.map((reference) => reference.sourceId))];
-  if (sourceIds.length > 0) {
-    const { data: sourceRows, error: sourceNamesError } = await admin
+  let citations: Array<{ source: string; quote: string; url: string | null }> = [];
+  if (usedPassage) {
+    const { data: sourceRow, error: sourceNameError } = await admin
       .from("knowledge_sources")
-      .select("name")
-      .in("id", sourceIds)
-      .eq("organization_id", organizationId);
+      .select("name, source_url")
+      .eq("id", usedPassage.sourceId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
 
-    if (sourceNamesError) {
-      console.error(`Could not load knowledge source names: ${describeError(sourceNamesError)}`);
-    } else {
-      sources = sourceRows.map((source) => source.name);
+    if (sourceNameError) {
+      console.error(`Could not load knowledge source names: ${describeError(sourceNameError)}`);
+    } else if (sourceRow) {
+      sources = [sourceRow.name];
+      citations = [{ source: sourceRow.name, quote: citationExcerpt(usedPassage.content), url: sourceRow.source_url }];
     }
   }
 
-  return Response.json({ conversationId, answer, escalated: !usedKnowledgeContext, sources }, { status: 201 });
+  return Response.json({ conversationId, answer, escalated: !usedKnowledgeContext, sources, citations }, { status: 201 });
 }

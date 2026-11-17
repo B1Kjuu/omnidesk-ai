@@ -1,0 +1,101 @@
+/**
+ * Retrieval + grounding evaluation. Runs the production pipeline (chunking, gemini-embedding-2,
+ * similarity threshold, Gemini's grounded answer) against a fixed fictional knowledge base and a set
+ * of questions with known right outcomes. Nothing touches the database.
+ *
+ *   npm run eval
+ *
+ * Writes evals/RESULTS.md. Needs GEMINI_API_KEY (read from .env.local).
+ */
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chunkSource } from "../lib/server/ai/chunking";
+import { cosineSimilarity, embedDocuments, embedQuery, EMBEDDING_MODEL } from "../lib/server/ai/embeddings";
+import { CONTEXT_PASSAGES, decideAnswer, generateGroundedAnswer, MIN_SIMILARITY, type Candidate } from "../lib/server/ai/grounding";
+
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
+if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set (add it to .env.local).");
+
+type Source = { name: string; type: string; content: string };
+type Case = { question: string; expect: string | null; kind: string };
+
+const knowledge = JSON.parse(readFileSync("evals/knowledge.json", "utf8")) as { organization: string; sources: Source[] };
+const cases = JSON.parse(readFileSync("evals/cases.json", "utf8")) as Case[];
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// The free Gemini tier allows ~10 generate calls per minute; pace calls and retry once on a failure.
+const PACE_MS = Number(process.env.EVAL_PACE_MS ?? 6500);
+let lastCall = 0;
+const pacedGenerate: typeof generateGroundedAnswer = async (question, passages) => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const wait = lastCall + PACE_MS - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastCall = Date.now();
+    const result = await generateGroundedAnswer(question, passages);
+    if (result !== null) return result;
+    await sleep(20_000);
+  }
+  return null;
+};
+
+// 1. Index: chunk and embed every source, exactly as /api/knowledge does.
+const passages = knowledge.sources.flatMap((source) => chunkSource(source.type, source.content).map((content) => ({ source: source.name, content })));
+const vectors = await embedDocuments(passages.map((passage) => ({ title: passage.source, text: passage.content })));
+console.log(`Indexed ${knowledge.sources.length} sources as ${passages.length} passages with ${EMBEDDING_MODEL}.\n`);
+
+// 2. Ask every question.
+type Row = Case & { got: string | null; answer: string; topScore: number; retrievedExpected: boolean; reason: string; pass: boolean };
+const rows: Row[] = [];
+for (const testCase of cases) {
+  const query = await embedQuery(testCase.question);
+  const candidates: Candidate[] = passages
+    .map((passage, index) => ({ id: String(index), sourceId: passage.source, content: passage.content, score: cosineSimilarity(query, vectors[index]), method: "semantic" as const }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, CONTEXT_PASSAGES);
+
+  const decision = await decideAnswer(testCase.question, candidates, pacedGenerate);
+  const got = decision.answered ? decision.used.sourceId : null;
+  const row: Row = {
+    ...testCase,
+    got,
+    answer: decision.answered ? decision.answer : "",
+    topScore: candidates[0]?.score ?? 0,
+    retrievedExpected: testCase.expect === null || candidates.some((candidate) => candidate.sourceId === testCase.expect && candidate.score >= MIN_SIMILARITY),
+    reason: decision.reason,
+    pass: got === testCase.expect,
+  };
+  rows.push(row);
+  console.log(`${row.pass ? "PASS" : "FAIL"}  ${row.topScore.toFixed(3)}  ${testCase.question}  ->  ${got ?? "escalate"} (${decision.reason})`);
+}
+
+// 3. Score.
+const answerable = rows.filter((row) => row.expect !== null);
+const unanswerable = rows.filter((row) => row.expect === null);
+const wrongAnswers = rows.filter((row) => row.got !== null && row.got !== row.expect);
+const pct = (part: number, whole: number) => (whole === 0 ? "n/a" : `${Math.round((part / whole) * 100)}%`);
+const summary = [
+  ["Overall accuracy", `${rows.filter((row) => row.pass).length}/${rows.length}`, pct(rows.filter((row) => row.pass).length, rows.length)],
+  ["Answerable questions answered from the right source", `${answerable.filter((row) => row.pass).length}/${answerable.length}`, pct(answerable.filter((row) => row.pass).length, answerable.length)],
+  ["Unanswerable questions correctly escalated", `${unanswerable.filter((row) => row.pass).length}/${unanswerable.length}`, pct(unanswerable.filter((row) => row.pass).length, unanswerable.length)],
+  ["Retrieval recall (right source in top passages above threshold)", `${answerable.filter((row) => row.retrievedExpected).length}/${answerable.length}`, pct(answerable.filter((row) => row.retrievedExpected).length, answerable.length)],
+  ["Wrong answers (answered when it should not, or from the wrong source)", String(wrongAnswers.length), wrongAnswers.length === 0 ? "none" : "see table"],
+];
+
+const markdown = [
+  "# Retrieval evaluation",
+  "",
+  `Generated by \`npm run eval\` on ${new Date().toISOString().slice(0, 10)}. Knowledge base: ${knowledge.organization}, ${knowledge.sources.length} sources, ${passages.length} passages.`,
+  `Embeddings: \`${EMBEDDING_MODEL}\` (768 dimensions). Answers: \`${process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite"}\`. Similarity threshold: ${MIN_SIMILARITY}. Passages per question: ${CONTEXT_PASSAGES}.`,
+  "",
+  "| Metric | Result | |",
+  "|---|---|---|",
+  ...summary.map(([metric, value, percent]) => `| ${metric} | ${value} | ${percent} |`),
+  "",
+  "| | Question | Kind | Expected | Got | Answer given | Top similarity | Reason |",
+  "|---|---|---|---|---|---|---|---|",
+  ...rows.map((row) => `| ${row.pass ? "✅" : "❌"} | ${row.question.replace(/\|/g, "\\|")} | ${row.kind} | ${row.expect ?? "escalate"} | ${row.got ?? "escalate"} | ${row.answer ? row.answer.replace(/|/g, "\|").replace(/s+/g, " ").slice(0, 140) : "(handed to staff)"} | ${row.topScore.toFixed(3)} | ${row.reason} |`),
+  "",
+].join("\n");
+
+writeFileSync("evals/RESULTS.md", markdown);
+console.log(`\n${summary.map(([metric, value, percent]) => `${metric}: ${value} (${percent})`).join("\n")}\n\nWrote evals/RESULTS.md`);
+process.exit(wrongAnswers.length > 0 ? 1 : 0);

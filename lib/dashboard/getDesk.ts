@@ -30,7 +30,7 @@ export const getDesk = cache(async () => {
     redirect("/auth?reason=session-expired");
   }
 
-  const [organizationsResult, conversationsResult, ticketsResult, workflowEventsResult, knowledgeSourcesResult, knowledgeChunksResult] = await Promise.all([
+  const [organizationsResult, conversationsResult, ticketsResult, workflowEventsResult, knowledgeSourcesResult] = await Promise.all([
     // "*" rather than naming slug, so the dashboard keeps working before the slug migration is applied.
     supabase.from("organizations").select("*").order("created_at", { ascending: true }),
     supabase
@@ -44,9 +44,9 @@ export const getDesk = cache(async () => {
     supabase.from("workflow_events").select("id, event_type, status, last_error, created_at").order("created_at", { ascending: false }),
     supabase
       .from("knowledge_sources")
-      .select("id, organization_id, name, source_type, status, created_at, organizations(name)")
+      // "*" so the page still loads before the retrieval migration adds content/source_url/last_error/chunk_count.
+      .select("*, organizations(name)")
       .order("created_at", { ascending: false }),
-    supabase.from("knowledge_chunks").select("source_id, content").order("created_at", { ascending: true }),
   ]);
 
   for (const [label, result] of [
@@ -55,7 +55,6 @@ export const getDesk = cache(async () => {
     ["tickets", ticketsResult],
     ["workflow events", workflowEventsResult],
     ["knowledge sources", knowledgeSourcesResult],
-    ["knowledge chunks", knowledgeChunksResult],
   ] as const) {
     if (result.error) {
       throw new Error(`Could not load ${label}: ${result.error.message}`);
@@ -72,7 +71,6 @@ export const getDesk = cache(async () => {
   const tickets = ticketsResult.data ?? [];
   const workflowEvents = workflowEventsResult.data ?? [];
   const knowledgeSources = knowledgeSourcesResult.data ?? [];
-  const knowledgeChunks = knowledgeChunksResult.data ?? [];
 
   const multipleOrganizations = organizations.length > 1;
   const organizationNames = new Map(organizations.map((organization) => [organization.id, organization.name]));
@@ -124,7 +122,10 @@ export const getDesk = cache(async () => {
     name: source.name,
     source_type: source.source_type,
     status: source.status,
-    content: knowledgeChunks.find((chunk) => chunk.source_id === source.id)?.content ?? "",
+    content: source.content ?? "",
+    source_url: source.source_url ?? null,
+    last_error: source.last_error ?? null,
+    chunk_count: source.chunk_count ?? 0,
   }));
 
   const openTickets = ticketItems.filter((ticket) => ticket.status === "open" || ticket.status === "in_progress");

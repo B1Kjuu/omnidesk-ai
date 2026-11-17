@@ -2,6 +2,8 @@ export type DeskReply = {
   answer: string;
   escalated: boolean;
   sources: string[];
+  /** The approved passage behind the answer, quoted so the customer can check it. */
+  citations: Array<{ source: string; quote: string; url: string | null }>;
 };
 
 type AskInput = {
@@ -24,7 +26,7 @@ export async function askDesk(input: AskInput): Promise<{ ok: true; reply: DeskR
     return { ok: false, error: "The support service could not be reached. Check your connection and try again." };
   }
 
-  let result: { answer?: string; escalated?: boolean; sources?: string[]; error?: string };
+  let result: { answer?: string; escalated?: boolean; sources?: string[]; citations?: DeskReply["citations"]; error?: string };
   try {
     result = await response.json();
   } catch {
@@ -41,6 +43,7 @@ export async function askDesk(input: AskInput): Promise<{ ok: true; reply: DeskR
       answer: result.answer,
       escalated: result.escalated === true,
       sources: Array.isArray(result.sources) ? result.sources : [],
+      citations: Array.isArray(result.citations) ? result.citations : [],
     },
   };
 }

@@ -97,14 +97,14 @@ isOneToOne: false
                   ]
                 },"knowledge_chunks": {
                   Row: {
-                    "content": string,"created_at": string,"embedding": string | null,"id": string,"metadata": NonNullable<Json>,"organization_id": string,"source_id": string
+                    "chunk_index": number,"content": string,"created_at": string,"embedding": string | null,"id": string,"metadata": NonNullable<Json>,"organization_id": string,"source_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "content": string,"created_at"?: string,"embedding"?: string | null,"id"?: string,"metadata"?: NonNullable<Json>,"organization_id": string,"source_id": string
+                    "chunk_index"?: number,"content": string,"created_at"?: string,"embedding"?: string | null,"id"?: string,"metadata"?: NonNullable<Json>,"organization_id": string,"source_id": string
                   }
                   Update: {
-                    "content"?: string,"created_at"?: string,"embedding"?: string | null,"id"?: string,"metadata"?: NonNullable<Json>,"organization_id"?: string,"source_id"?: string
+                    "chunk_index"?: number,"content"?: string,"created_at"?: string,"embedding"?: string | null,"id"?: string,"metadata"?: NonNullable<Json>,"organization_id"?: string,"source_id"?: string
                   }
                   Relationships: [
                     {
@@ -123,14 +123,14 @@ isOneToOne: false
                   ]
                 },"knowledge_sources": {
                   Row: {
-                    "created_at": string,"created_by": string,"id": string,"name": string,"organization_id": string,"source_type": string,"status": string,"storage_path": string | null,"updated_at": string
+                    "chunk_count": number,"content": string | null,"created_at": string,"created_by": string,"id": string,"last_error": string | null,"name": string,"organization_id": string,"source_type": string,"source_url": string | null,"status": string,"storage_path": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"created_by": string,"id"?: string,"name": string,"organization_id": string,"source_type": string,"status"?: string,"storage_path"?: string | null,"updated_at"?: string
+                    "chunk_count"?: number,"content"?: string | null,"created_at"?: string,"created_by": string,"id"?: string,"last_error"?: string | null,"name": string,"organization_id": string,"source_type": string,"source_url"?: string | null,"status"?: string,"storage_path"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"source_type"?: string,"status"?: string,"storage_path"?: string | null,"updated_at"?: string
+                    "chunk_count"?: number,"content"?: string | null,"created_at"?: string,"created_by"?: string,"id"?: string,"last_error"?: string | null,"name"?: string,"organization_id"?: string,"source_type"?: string,"source_url"?: string | null,"status"?: string,"storage_path"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -267,6 +267,11 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
+            "match_knowledge_chunks":
+{ Args: { "match_count"?: number,"query_embedding": string,"target_organization_id": string }; Returns: {
+              "content": string,"id": string,"similarity": number,"source_id": string
+            }[]
+                           },
             "get_notification_recipient":
 { Args: { "target_organization_id": string }; Returns: string | null
                            },

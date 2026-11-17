@@ -78,13 +78,27 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
                             : `Passed to the ${organizationName} team. Add your email below so they can reply.`}
                         </p>
                       ) : (
-                        <p className={`mt-3 flex items-center gap-2 text-sm ${replyToneClasses[getStatus("reply", "answered").tone]}`}>
-                          <Icon name="check" className="size-4 shrink-0" />
-                          <span>
-                            <span className="font-bold">{getStatus("reply", "answered").label} from</span>{" "}
-                            {item.reply.sources.length > 0 ? item.reply.sources.join(", ") : "approved help articles"}
-                          </span>
-                        </p>
+                        <div className="mt-3">
+                          <p className={`flex items-center gap-2 text-sm ${replyToneClasses[getStatus("reply", "answered").tone]}`}>
+                            <Icon name="check" className="size-4 shrink-0" />
+                            <span>
+                              <span className="font-bold">{getStatus("reply", "answered").label} from</span>{" "}
+                              {item.reply.sources.length > 0 ? item.reply.sources.join(", ") : "approved help articles"}
+                            </span>
+                          </p>
+                          {item.reply.citations.map((citation) => (
+                            <figure key={citation.source} className="mt-2 max-w-[65ch] border-l-2 border-go bg-paper px-3 py-2">
+                              <blockquote className="text-sm/relaxed text-ink-2">&ldquo;{citation.quote}&rdquo;</blockquote>
+                              <figcaption className="mt-1 text-xs text-ink-2">
+                                {citation.url ? (
+                                  <a href={citation.url} target="_blank" rel="noopener noreferrer" className="font-bold underline">{citation.source}</a>
+                                ) : (
+                                  <span className="font-bold">{citation.source}</span>
+                                )}
+                              </figcaption>
+                            </figure>
+                          ))}
+                        </div>
                       )}
                     </>
                   )}

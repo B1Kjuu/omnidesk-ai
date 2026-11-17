@@ -60,4 +60,22 @@ npx supabase@latest migration up
 
 ## Change policy
 
-The owner asked not to commit the current work yet. Preserve the uncommitted changes and do not run destructive Git commands.
+The MVP work is committed and pushed to `origin/main` as `f130db1`. Do not commit or push further changes unless the owner explicitly asks, and do not run destructive Git commands.
+
+## UI redesign (2026-11-17, uncommitted)
+
+- Visual world: "Railway Information Program" chosen through the Impeccable design skill. Product truth in `PRODUCT.md`, design system in `DESIGN.md`, direction contract in `.impeccable/surfaces/` (the skill itself is vendored locally in `.claude/skills/impeccable/`, excluded from git via `.git/info/exclude`).
+- Landing: split-flap departure board with rotating example rows, scroll-drawn route map, engineering timetable.
+- Dashboard split into `/dashboard` (overview), `/dashboard/inbox`, `/escalations`, `/knowledge`, `/automation`, `/organizations`; shared data loader `lib/dashboard/getDesk.ts`.
+- `/api/chat` now also returns `escalated` and `sources` (knowledge source names).
+- Optional `DEMO_ORGANIZATION_ID` env var turns on a live "Ask the desk" row on the landing page; escalated demo questions send real staff emails.
+- The dashboard "test conversation" form was removed.
+
+## Production setup notes
+
+- Supabase Cloud project `omnidesk-ai` (ref `lzqawtivzmtjgrpulycz`, ap-southeast-2) is linked and all 7 migrations were applied on 2026-11-17.
+- The Supabase CLI now targets the local stack by default; production commands need `--remote` (and `--yes` to confirm hosted changes).
+
+- In Supabase Cloud, set Authentication > URL Configuration > Site URL to the Vercel production URL so email-confirmation links land on the deployed app.
+- Supabase Cloud requires email confirmation by default; the sign-up form already tells users to confirm and then sign in.
+- The built-in Supabase email sender is heavily rate-limited; use few sign-ups during the smoke test or configure custom SMTP.

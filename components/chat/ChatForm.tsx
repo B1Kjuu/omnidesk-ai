@@ -1,61 +1,144 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Icon from "@/components/ui/Icon";
+import { askDesk, formatClock, type DeskReply } from "@/lib/askDesk";
+import { getStatus, replyToneClasses } from "@/lib/status";
 
-export default function ChatForm({ organizationId }: { organizationId: string }) {
+type Exchange = {
+  id: string;
+  time: string;
+  question: string;
+  reply: DeskReply | null;
+  error: string | null;
+};
+
+export default function ChatForm({ organizationId, organizationName }: { organizationId: string; organizationName: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [identified, setIdentified] = useState(false);
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const [isSending, setIsSending] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus("");
-    setIsSubmitting(true);
+    const question = message.trim();
+    if (!question || !name.trim()) return;
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, name, email, message }),
-      });
-      const result: { answer?: string; error?: string } = await response.json();
+    const id = crypto.randomUUID();
+    setExchanges((items) => [...items, { id, time: formatClock(new Date()), question, reply: null, error: null }]);
+    setMessage("");
+    setIdentified(true);
+    setIsSending(true);
 
-      if (!response.ok) {
-        setStatus(result.error ?? "We could not send your message.");
-        return;
-      }
-
-      setName("");
-      setEmail("");
-      setMessage("");
-      setStatus(result.answer ?? "Thanks. Your message has been sent to the support team.");
-    } catch {
-      setStatus("We could not reach the support service. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    const result = await askDesk({ organizationId, name: name.trim(), email: email.trim(), message: question });
+    setExchanges((items) =>
+      items.map((item) => (item.id !== id ? item : result.ok ? { ...item, reply: result.reply } : { ...item, error: result.error })),
+    );
+    setIsSending(false);
   }
 
   return (
-    <form className="space-y-5" onSubmit={submit}>
-      <label className="block text-sm font-medium text-slate-700">
-        Name
-        <input className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" required maxLength={160} value={name} onChange={(event) => setName(event.target.value)} />
-      </label>
-      <label className="block text-sm font-medium text-slate-700">
-        Email
-        <input className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5" type="email" maxLength={320} value={email} onChange={(event) => setEmail(event.target.value)} />
-      </label>
-      <label className="block text-sm font-medium text-slate-700">
-        How can we help?
-        <textarea className="mt-2 min-h-32 w-full rounded-lg border border-slate-300 px-3 py-2.5" required maxLength={5000} value={message} onChange={(event) => setMessage(event.target.value)} />
-      </label>
-      {status && <p className="text-sm text-slate-700" role="status">{status}</p>}
-      <button className="w-full rounded-lg bg-slate-950 px-4 py-3 font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Sending..." : "Send message"}
-      </button>
-    </form>
+    <div className="flex flex-1 flex-col gap-8">
+      {exchanges.length === 0 ? (
+        <div className="max-w-[60ch]">
+          <h2 className="text-xl font-bold">Ask {organizationName} a question</h2>
+          <p className="mt-2 text-base leading-relaxed text-ink-2">
+            Answers come from {organizationName}&apos;s approved help articles. If none of them covers your question, it goes straight to a person on the team.
+          </p>
+        </div>
+      ) : (
+        <ol className="space-y-8" aria-label="Your conversation" aria-live="polite">
+          {exchanges.map((item) => (
+            <li key={item.id} className="flap relative grid grid-cols-[3.5rem_1fr] gap-x-4">
+              <time className="pt-0.5 font-mono text-sm font-bold text-ink-2">{item.time}</time>
+              <div className="border-l-2 border-ink pl-5">
+                <p className="text-xs font-bold tracking-wide text-ink-2 uppercase">You asked</p>
+                <p className="mt-1 text-lg leading-snug">{item.question}</p>
+
+                <div className="mt-4 border-t border-dashed border-rule-strong pt-4">
+                  {item.error ? (
+                    <p className="alert-error" role="alert">{item.error}</p>
+                  ) : !item.reply ? (
+                    <p className={`text-[0.9375rem] font-bold motion-safe:animate-pulse ${replyToneClasses[getStatus("reply", "checking").tone]}`}>
+                      {getStatus("reply", "checking").label}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="max-w-[65ch] text-base leading-relaxed whitespace-pre-wrap">{item.reply.answer}</p>
+                      {item.reply.escalated ? (
+                        <p className={`mt-3 flex items-start gap-2 px-3 py-2 text-sm font-bold ${replyToneClasses[getStatus("reply", "staff").tone]}`}>
+                          <Icon name="person" className="mt-0.5 size-4 shrink-0" />
+                          {email.trim()
+                            ? `Passed to the ${organizationName} team. They will reply to ${email.trim()}.`
+                            : `Passed to the ${organizationName} team. Add your email below so they can reply.`}
+                        </p>
+                      ) : (
+                        <p className={`mt-3 flex items-center gap-2 text-sm ${replyToneClasses[getStatus("reply", "answered").tone]}`}>
+                          <Icon name="check" className="size-4 shrink-0" />
+                          <span>
+                            <span className="font-bold">{getStatus("reply", "answered").label} from</span>{" "}
+                            {item.reply.sources.length > 0 ? item.reply.sources.join(", ") : "approved help articles"}
+                          </span>
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <form className={`${exchanges.length > 0 ? "mt-auto" : ""} border border-rule bg-paper p-5 sm:p-6`} onSubmit={submit}>
+        {identified ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-2">
+            <span>
+              Asking as <span className="font-bold text-ink">{name}</span>
+              {email && <> · {email}</>}
+            </span>
+            <button type="button" className="btn btn-quiet py-1 text-sm" onClick={() => setIdentified(false)}>
+              Change details
+            </button>
+          </div>
+        ) : (
+          <div className="mb-5 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="field-label" htmlFor="chat-name">Your name</label>
+              <input id="chat-name" className="field mt-1.5" autoComplete="name" required maxLength={160} value={name} onChange={(event) => setName(event.target.value)} />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="chat-email">
+                Email <span className="font-normal text-ink-2">(optional)</span>
+              </label>
+              <input id="chat-email" className="field mt-1.5" type="email" autoComplete="email" maxLength={320} value={email} onChange={(event) => setEmail(event.target.value)} aria-describedby="chat-email-hint" />
+              <p id="chat-email-hint" className="field-hint">Needed if a person has to reply.</p>
+            </div>
+          </div>
+        )}
+
+        <label className="field-label" htmlFor="chat-message">Your question</label>
+        <textarea
+          id="chat-message"
+          className="field mt-1.5 min-h-28 resize-y"
+          required
+          maxLength={5000}
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit();
+          }}
+        />
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="hidden text-sm text-ink-2 sm:block">Ctrl or ⌘ + Enter to send</p>
+          <button className="btn btn-primary px-6" type="submit" disabled={isSending || !message.trim() || !name.trim()}>
+            {isSending ? "Sending" : "Send question"}
+            <Icon name="arrow" />
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

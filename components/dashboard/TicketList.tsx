@@ -2,39 +2,46 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Icon from "@/components/ui/Icon";
+import LocalTime from "@/components/ui/LocalTime";
+import StatusTag from "@/components/ui/StatusTag";
 import { createClient } from "@/lib/supabase/browser";
+import { getOptions } from "@/lib/status";
+import { EmptyState } from "./SectionHeader";
 
-type Ticket = {
+export type TicketItem = {
   id: string;
   organization_id: string;
+  organization_name: string | null;
   category: string;
   priority: string;
   status: string;
+  created_at: string;
   customer_name: string;
   customer_email: string | null;
+  question: string | null;
 };
 
-const statuses = ["open", "in_progress", "resolved", "cancelled"];
-const priorities = ["low", "normal", "high", "urgent"];
+const categoryLabel: Record<string, string> = { knowledge_gap: "No approved answer" };
 
-export default function TicketList({ tickets }: { tickets: Ticket[] }) {
+export default function TicketList({ tickets }: { tickets: TicketItem[] }) {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  async function updateTicket(ticket: Ticket, field: "status" | "priority", value: string) {
-    setMessage("");
+  async function updateTicket(ticket: TicketItem, field: "status" | "priority", value: string) {
+    setError("");
     setUpdatingId(ticket.id);
 
     try {
-      const { error } = await createClient().rpc("update_ticket", {
+      const { error: updateError } = await createClient().rpc("update_ticket", {
         target_ticket_id: ticket.id,
         new_status: field === "status" ? value : ticket.status,
         new_priority: field === "priority" ? value : ticket.priority,
       });
 
-      if (error) {
-        setMessage(error.message);
+      if (updateError) {
+        setError(`The ticket could not be updated: ${updateError.message}`);
         return;
       }
 
@@ -45,46 +52,77 @@ export default function TicketList({ tickets }: { tickets: Ticket[] }) {
   }
 
   if (tickets.length === 0) {
-    return <p className="mt-6 rounded-xl bg-slate-50 p-5 text-slate-600">No support tickets yet.</p>;
+    return (
+      <EmptyState title="No handoffs to staff">
+        When a customer asks something your knowledge does not cover, OmniDesk opens a ticket here instead of guessing.
+      </EmptyState>
+    );
   }
 
   return (
     <>
-      <ul className="mt-6 space-y-3">
-        {tickets.map((ticket) => (
-          <li key={ticket.id} className="rounded-xl border border-slate-200 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="font-medium text-slate-900">{ticket.customer_name}</p>
-                <p className="mt-1 text-sm text-slate-500">{ticket.customer_email ?? "No email provided"} · {ticket.category}</p>
+      {error && <p className="alert-error mt-4" role="alert">{error}</p>}
+      <ul>
+        {tickets.map((ticket) => {
+          const isUpdating = updatingId === ticket.id;
+          return (
+            <li key={ticket.id} className={`border-b border-rule py-4 transition-opacity last:border-b-0 ${isUpdating ? "opacity-60" : ""}`}>
+              <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+                <div className="min-w-0 flex-1 basis-80">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <p className="font-bold">{ticket.customer_name}</p>
+                    <StatusTag domain="ticket" value={ticket.status} />
+                    <StatusTag domain="priority" value={ticket.priority} />
+                  </div>
+                  {ticket.question && <p className="mt-2 max-w-[70ch] text-[0.9375rem] leading-relaxed">&ldquo;{ticket.question}&rdquo;</p>}
+                  <p className="mt-2 text-sm text-ink-2">
+                    <LocalTime iso={ticket.created_at} /> · {categoryLabel[ticket.category] ?? ticket.category}
+                    {ticket.organization_name && <> · {ticket.organization_name}</>}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-ink-2" htmlFor={`ticket-priority-${ticket.id}`}>Priority</label>
+                    <select
+                      id={`ticket-priority-${ticket.id}`}
+                      className="field mt-1 w-auto py-1.5 text-sm"
+                      value={ticket.priority}
+                      disabled={isUpdating}
+                      onChange={(event) => updateTicket(ticket, "priority", event.target.value)}
+                    >
+                      {getOptions("priority").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-ink-2" htmlFor={`ticket-status-${ticket.id}`}>Status</label>
+                    <select
+                      id={`ticket-status-${ticket.id}`}
+                      className="field mt-1 w-auto py-1.5 text-sm"
+                      value={ticket.status}
+                      disabled={isUpdating}
+                      onChange={(event) => updateTicket(ticket, "status", event.target.value)}
+                    >
+                      {getOptions("ticket").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  {ticket.customer_email ? (
+                    <a
+                      className="btn btn-secondary py-1.5 text-sm no-underline"
+                      href={`mailto:${ticket.customer_email}?subject=${encodeURIComponent("Re: your question")}`}
+                    >
+                      Reply by email
+                      <Icon name="external" className="size-3.5" />
+                    </a>
+                  ) : (
+                    <p className="pb-1.5 text-sm text-ink-2">No email to reply to</p>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <label className="sr-only" htmlFor={`ticket-priority-${ticket.id}`}>Ticket priority</label>
-                <select
-                  id={`ticket-priority-${ticket.id}`}
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium uppercase tracking-wide text-slate-600"
-                  value={ticket.priority}
-                  disabled={updatingId === ticket.id}
-                  onChange={(event) => updateTicket(ticket, "priority", event.target.value)}
-                >
-                  {priorities.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-                </select>
-                <label className="sr-only" htmlFor={`ticket-status-${ticket.id}`}>Ticket status</label>
-                <select
-                  id={`ticket-status-${ticket.id}`}
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium uppercase tracking-wide text-slate-600"
-                  value={ticket.status}
-                  disabled={updatingId === ticket.id}
-                  onChange={(event) => updateTicket(ticket, "status", event.target.value)}
-                >
-                  {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                </select>
-              </div>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
-      {message && <p className="mt-3 text-sm text-rose-700" role="alert">{message}</p>}
     </>
   );
 }

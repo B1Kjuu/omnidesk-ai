@@ -4,24 +4,24 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 
-export default function CreateOrganizationForm() {
+export default function CreateOrganizationForm({ isFirst }: { isFirst: boolean }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage("");
+    setError("");
     setIsSubmitting(true);
 
     try {
-      const { error } = await createClient().rpc("create_organization", {
+      const { error: createError } = await createClient().rpc("create_organization", {
         organization_name: name.trim(),
       });
 
-      if (error) {
-        setMessage(error.message);
+      if (createError) {
+        setError(`The organization could not be created: ${createError.message}`);
         return;
       }
 
@@ -33,25 +33,23 @@ export default function CreateOrganizationForm() {
   }
 
   return (
-    <form className="mt-6 flex max-w-lg flex-col gap-3 sm:flex-row" onSubmit={submit}>
-      <label className="sr-only" htmlFor="organization-name">Organization name</label>
-      <input
-        id="organization-name"
-        className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5 outline-none ring-amber-500 focus:ring-2"
-        placeholder="Organization name"
-        required
-        maxLength={120}
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-      />
-      <button
-        className="rounded-lg bg-slate-950 px-4 py-2.5 font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-        type="submit"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? "Creating..." : "Create organization"}
-      </button>
-      {message && <p className="basis-full text-sm text-rose-700" role="alert">{message}</p>}
+    <form className="max-w-xl" onSubmit={submit}>
+      <label className="field-label" htmlFor="organization-name">{isFirst ? "Organization name" : "Add another organization"}</label>
+      <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+        <input
+          id="organization-name"
+          className="field min-w-0 flex-1"
+          placeholder="For example, Sunrise Outfitters"
+          required
+          maxLength={120}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Creating" : "Create organization"}
+        </button>
+      </div>
+      {error && <p className="alert-error mt-3" role="alert">{error}</p>}
     </form>
   );
 }

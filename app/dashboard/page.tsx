@@ -1,221 +1,128 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { connection } from "next/server";
-import CreateOrganizationForm from "@/components/dashboard/CreateOrganizationForm";
-import CreateConversationForm from "@/components/dashboard/CreateConversationForm";
-import CreateKnowledgeSourceForm from "@/components/dashboard/CreateKnowledgeSourceForm";
-import KnowledgeSourceList from "@/components/dashboard/KnowledgeSourceList";
-import TicketList from "@/components/dashboard/TicketList";
-import WorkflowEventList from "@/components/dashboard/WorkflowEventList";
-import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "./SignOutButton";
+import CopyLinkButton from "@/components/dashboard/CopyLinkButton";
+import { PageTitle, Panel } from "@/components/dashboard/SectionHeader";
+import SetupRoute from "@/components/dashboard/SetupRoute";
+import Icon from "@/components/ui/Icon";
+import LocalTime from "@/components/ui/LocalTime";
+import StatusTag from "@/components/ui/StatusTag";
+import { getDesk, plural } from "@/lib/dashboard/getDesk";
 
 export const instant = false;
 
-export default async function DashboardPage() {
-  await connection();
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+function PanelLink({ href, children }: { href: string; children: string }) {
+  return (
+    <Link href={href} className="inline-flex items-center gap-1.5 text-sm font-bold text-signal-deep no-underline hover:underline">
+      {children}
+      <Icon name="arrow" className="size-3.5" />
+    </Link>
+  );
+}
 
-  if (userError || !userData.user) {
-    redirect("/auth?reason=session-expired");
-  }
-
-  const { data: organizations, error: organizationsError } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .order("created_at", { ascending: true });
-
-  if (organizationsError) {
-    throw new Error(`Could not load organizations: ${organizationsError.message}`);
-  }
-
-  const { data: conversations, error: conversationsError } = await supabase
-    .from("conversations")
-    .select("id, status, created_at, customers(name, email), messages(id, sender_type, content, created_at)")
-    .order("created_at", { ascending: false });
-
-  if (conversationsError) {
-    throw new Error(`Could not load conversations: ${conversationsError.message}`);
-  }
-
-  const { data: tickets, error: ticketsError } = await supabase
-    .from("tickets")
-    .select("id, organization_id, category, priority, status, created_at, conversations(customers(name, email))")
-    .order("created_at", { ascending: false });
-
-  if (ticketsError) {
-    throw new Error(`Could not load tickets: ${ticketsError.message}`);
-  }
-
-  const { data: workflowEvents, error: workflowEventsError } = await supabase
-    .from("workflow_events")
-    .select("id, event_type, status, last_error, created_at")
-    .order("created_at", { ascending: false });
-
-  if (workflowEventsError) {
-    throw new Error(`Could not load workflow events: ${workflowEventsError.message}`);
-  }
-
-  const ticketItems = tickets.map((ticket) => ({
-    id: ticket.id,
-    organization_id: ticket.organization_id,
-    category: ticket.category,
-    priority: ticket.priority,
-    status: ticket.status,
-    customer_name: ticket.conversations?.customers?.name ?? "Unnamed customer",
-    customer_email: ticket.conversations?.customers?.email ?? null,
-  }));
-
-  const { data: knowledgeSources, error: knowledgeSourcesError } = await supabase
-    .from("knowledge_sources")
-    .select("id, organization_id, name, source_type, status, created_at, organizations(name)")
-    .order("created_at", { ascending: false });
-
-  if (knowledgeSourcesError) {
-    throw new Error(`Could not load knowledge sources: ${knowledgeSourcesError.message}`);
-  }
-
-  const { data: knowledgeChunks, error: knowledgeChunksError } = await supabase
-    .from("knowledge_chunks")
-    .select("source_id, content")
-    .order("created_at", { ascending: true });
-
-  if (knowledgeChunksError) {
-    throw new Error(`Could not load knowledge chunks: ${knowledgeChunksError.message}`);
-  }
-
-  const sourceItems = knowledgeSources.map((source) => ({
-    id: source.id,
-    organization_id: source.organization_id,
-    organization_name: source.organizations?.name ?? "Unknown organization",
-    name: source.name,
-    source_type: source.source_type,
-    status: source.status,
-    content: knowledgeChunks.find((chunk) => chunk.source_id === source.id)?.content ?? "",
-  }));
+export default async function OverviewPage() {
+  const desk = await getDesk();
+  const hasOrganization = desk.organizations.length > 0;
+  const waiting = desk.openTickets.slice(0, 4);
+  const latest = desk.conversations.slice(0, 6);
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="rounded-2xl bg-slate-950 px-6 py-5 text-white shadow-xl shadow-slate-900/10 sm:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-6">
-            <div>
-              <Link className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300" href="/">
-                OmniDesk AI
-              </Link>
-              <div className="mt-4 flex items-center gap-3">
-                <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-medium uppercase tracking-wide text-emerald-300">Workspace live</span>
-                <span className="text-sm text-slate-400">Support operations</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-5">
-              <div className="text-right">
-                <p className="text-sm font-medium text-slate-200">{userData.user.email}</p>
-                <p className="mt-1 text-xs text-slate-400">Signed in account</p>
-              </div>
-              <SignOutButton />
-            </div>
-          </div>
-          <nav className="mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4 text-sm">
-            <a className="rounded-lg bg-white/10 px-3 py-2 font-medium text-white" href="#overview">Overview</a>
-            <a className="rounded-lg px-3 py-2 text-slate-400 transition hover:bg-white/10 hover:text-white" href="#inbox">Inbox</a>
-            <a className="rounded-lg px-3 py-2 text-slate-400 transition hover:bg-white/10 hover:text-white" href="#knowledge">Knowledge</a>
-            <a className="rounded-lg px-3 py-2 text-slate-400 transition hover:bg-white/10 hover:text-white" href="#automation">Automation</a>
-          </nav>
-        </header>
+    <>
+      <PageTitle
+        title="Overview"
+        description={
+          hasOrganization
+            ? `${plural(desk.conversations.length, "conversation")} · ${desk.openTickets.length} waiting on staff · ${plural(desk.sources.length, "approved source")}`
+            : "Set up your first organization to start answering customers."
+        }
+      />
 
-        <section id="overview" className="mt-8">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-amber-600">Command center</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">Support overview</h1>
-            <p className="mt-2 text-slate-600">Monitor customer conversations, knowledge, and human handoffs from one workspace.</p>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ["Organizations", organizations.length, "Active workspaces"],
-              ["Conversations", conversations.length, "Stored customer threads"],
-              ["Escalations", tickets.filter((ticket) => ticket.status !== "resolved" && ticket.status !== "cancelled").length, "Need human attention"],
-              ["Knowledge sources", knowledgeSources.length, "Approved sources"],
-            ].map(([label, value, description]) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-sm font-medium text-slate-500">{label}</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
-                <p className="mt-1 text-sm text-slate-500">{description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+      <div className="space-y-8">
+        <SetupRoute
+          hasOrganization={hasOrganization}
+          hasKnowledge={desk.sources.length > 0}
+          hasConversation={desk.conversations.length > 0}
+          hasEscalation={desk.tickets.length > 0}
+          chatHref={desk.chatHref}
+        />
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">Workspace setup</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-950">Your organizations</h2>
-          </div>
-          {organizations.length > 0 ? (
-            <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-              {organizations.map((organization) => (
-                <li key={organization.id} className="rounded-xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-800">{organization.name}</p>
-                  <Link className="mt-2 inline-block text-sm text-slate-500 underline underline-offset-4 hover:text-slate-950" href={`/chat/${organization.id}`}>
-                    Open customer chat
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-slate-600">Create an organization to start managing customer support.</p>
-          )}
-          <CreateOrganizationForm />
-        </section>
+        {desk.failedEvents.length > 0 && (
+          <Link
+            href="/dashboard/automation"
+            className="flex flex-wrap items-center justify-between gap-3 bg-notice px-5 py-3.5 font-bold text-ink no-underline hover:brightness-95"
+          >
+            <span className="flex items-center gap-2.5">
+              <Icon name="bolt" />
+              {plural(desk.failedEvents.length, "staff email")} failed to send. The team was not notified.
+            </span>
+            <span className="flex items-center gap-1.5 text-sm">
+              See the errors
+              <Icon name="arrow" className="size-3.5" />
+            </span>
+          </Link>
+        )}
 
-        <section id="inbox" className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold text-slate-950">Inbox</h2>
-          <p className="mt-2 text-slate-600">Conversations currently stored for your organizations.</p>
-          {conversations.length > 0 ? (
-            <ul className="mt-6 space-y-4">
-              {conversations.map((conversation) => (
-                <li key={conversation.id} className="rounded-xl border border-slate-200 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="font-medium text-slate-900">{conversation.customers?.name ?? "Unnamed customer"}</p>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">{conversation.status}</span>
+        {hasOrganization && (
+          <div className="grid gap-8 xl:grid-cols-2">
+            <Panel title="Waiting on staff" action={<PanelLink href="/dashboard/escalations">All escalations</PanelLink>}>
+              {waiting.length === 0 ? (
+                <p className="py-4 text-[0.9375rem] leading-relaxed text-ink-2">Nothing is waiting. Every recent question was answered from your knowledge.</p>
+              ) : (
+                <ul>
+                  {waiting.map((ticket) => (
+                    <li key={ticket.id} className="border-t border-rule py-3.5 first:border-t-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate font-bold">{ticket.customer_name}</p>
+                        <StatusTag domain="priority" value={ticket.priority} />
+                      </div>
+                      {ticket.question && <p className="mt-1 truncate text-[0.9375rem] text-ink-2">{ticket.question}</p>}
+                      <LocalTime iso={ticket.created_at} className="mt-1 block text-xs text-ink-3" />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel title="Latest questions" action={<PanelLink href="/dashboard/inbox">Open inbox</PanelLink>}>
+              {latest.length === 0 ? (
+                <p className="py-4 text-[0.9375rem] leading-relaxed text-ink-2">No questions yet. Share your customer chat page to receive the first one.</p>
+              ) : (
+                <ul>
+                  {latest.map((conversation) => (
+                    <li key={conversation.id} className="grid grid-cols-[1fr_auto] items-center gap-x-3 border-t border-rule py-3 first:border-t-0">
+                      <div className="min-w-0">
+                        <p className="truncate text-[0.9375rem]">
+                          <span className="font-bold">{conversation.customer_name}</span>
+                          <span className="text-ink-2"> · {conversation.messages.find((message) => message.sender_type === "customer")?.content ?? "No message"}</span>
+                        </p>
+                        <LocalTime iso={conversation.created_at} className="text-xs text-ink-3" />
+                      </div>
+                      <StatusTag domain="conversation" value={conversation.status} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          </div>
+        )}
+
+        {hasOrganization && (
+          <Panel title="Customer chat pages" action={<PanelLink href="/dashboard/organizations">Manage</PanelLink>}>
+            <ul>
+              {desk.organizations.map((organization) => (
+                <li key={organization.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-rule py-3 first:border-t-0">
+                  <p className="font-bold">{organization.name}</p>
+                  <div className="flex items-center gap-1">
+                    <CopyLinkButton path={`/chat/${organization.id}`} />
+                    <Link className="btn btn-secondary py-1.5 text-sm no-underline" href={`/chat/${organization.id}`} target="_blank">
+                      Open
+                      <Icon name="external" className="size-3.5" />
+                    </Link>
                   </div>
-                  <p className="mt-2 text-sm text-slate-500">{conversation.customers?.email ?? "No email provided"}</p>
-                  <ul className="mt-4 space-y-2 border-l-2 border-slate-200 pl-4">
-                    {conversation.messages?.map((message) => (
-                      <li key={message.id} className="text-sm text-slate-700">
-                        <span className="font-medium">{message.sender_type}: </span>{message.content}
-                      </li>
-                    ))}
-                  </ul>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="mt-6 rounded-xl bg-slate-50 p-5 text-slate-600">No conversations yet.</p>
-          )}
-          <CreateConversationForm organizations={organizations} />
-        </section>
-
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold text-slate-950">Human escalations</h2>
-          <p className="mt-2 text-slate-600">Only conversations the AI could not answer appear here. FAQ-answered conversations stay in the Inbox and do not create tickets.</p>
-          <TicketList tickets={ticketItems} />
-        </section>
-
-        <section id="automation" className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold text-slate-950">Automation events</h2>
-          <p className="mt-2 text-slate-600">Escalation events waiting for n8n or another workflow worker.</p>
-          <WorkflowEventList events={workflowEvents} />
-        </section>
-
-        <section id="knowledge" className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold text-slate-950">Knowledge sources</h2>
-          <p className="mt-2 text-slate-600">Add FAQs and documents that the AI will use for grounded answers.</p>
-          <KnowledgeSourceList sources={sourceItems} />
-          <CreateKnowledgeSourceForm organizations={organizations} />
-        </section>
+          </Panel>
+        )}
       </div>
-    </main>
+    </>
   );
 }

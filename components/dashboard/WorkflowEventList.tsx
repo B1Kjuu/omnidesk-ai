@@ -1,3 +1,7 @@
+import LocalTime from "@/components/ui/LocalTime";
+import StatusTag from "@/components/ui/StatusTag";
+import { EmptyState } from "./SectionHeader";
+
 type WorkflowEvent = {
   id: string;
   event_type: string;
@@ -6,29 +10,43 @@ type WorkflowEvent = {
   created_at: string;
 };
 
-function formatStatus(status: string) {
-  return status.replace("_", " ");
-}
+const eventLabel: Record<string, string> = { "conversation.escalated": "Staff handoff email" };
 
 export default function WorkflowEventList({ events }: { events: WorkflowEvent[] }) {
   if (events.length === 0) {
-    return <p className="mt-6 rounded-xl bg-slate-50 p-5 text-slate-600">No workflow events yet.</p>;
+    return (
+      <EmptyState title="No automation events yet">
+        Each staff handoff queues an event here and sends it to n8n. You will see whether the email went out, or the error if it did not.
+      </EmptyState>
+    );
   }
 
   return (
-    <ul className="mt-6 space-y-3">
-      {events.map((event) => (
-        <li key={event.id} className="rounded-xl border border-slate-200 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-medium text-slate-900">{event.event_type}</p>
-              <p className="mt-1 text-sm text-slate-500">{new Date(event.created_at).toLocaleString()}</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">{formatStatus(event.status)}</span>
-          </div>
-          {event.last_error && <p className="mt-3 text-sm text-rose-700">{event.last_error}</p>}
-        </li>
-      ))}
-    </ul>
+    <table className="w-full border-collapse text-left">
+      <thead className="sr-only md:not-sr-only">
+        <tr className="text-xs tracking-wide text-ink-2 uppercase">
+          <th scope="col" className="py-2 pr-4 font-bold">Event</th>
+          <th scope="col" className="py-2 pr-4 font-bold">Queued</th>
+          <th scope="col" className="py-2 text-right font-bold">Delivery</th>
+        </tr>
+      </thead>
+      <tbody>
+        {events.map((event) => (
+          <tr key={event.id} className="grid grid-cols-[1fr_auto] gap-x-4 border-t border-rule py-3 first:border-t-0 md:table-row md:py-0 md:first:border-t">
+            <td className="md:py-3 md:pr-4">
+              <p className="font-bold">{eventLabel[event.event_type] ?? event.event_type}</p>
+              <p className="font-mono text-xs text-ink-2">{event.event_type}</p>
+              {event.last_error && <p className="mt-1.5 text-sm text-signal-deep">{event.last_error}</p>}
+            </td>
+            <td className="col-start-1 row-start-2 text-sm text-ink-2 md:py-3 md:pr-4">
+              <LocalTime iso={event.created_at} />
+            </td>
+            <td className="col-start-2 row-span-2 row-start-1 text-right md:py-3">
+              <StatusTag domain="workflow" value={event.status} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

@@ -1,6 +1,5 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import ChatForm from "@/components/chat/ChatForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -25,20 +24,21 @@ export default async function CustomerChatPage({ params }: Params) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-12">
-      <div className="mx-auto max-w-xl">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <Link className="text-sm font-medium text-slate-500 underline underline-offset-4 hover:text-slate-950" href="/dashboard">
-            Back to dashboard
-          </Link>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">{organization.name}</p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">How can we help?</h1>
-          <p className="mt-3 text-slate-600">Send a message to the support team and we&apos;ll keep the conversation together.</p>
-          <div className="mt-8">
-            <ChatForm organizationId={organization.id} />
-          </div>
+    <main className="flex flex-1 flex-col bg-platform">
+      <header className="bg-signal text-white">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
+          <h1 className="text-3xl leading-tight font-bold tracking-[-0.02em] sm:text-4xl">{organization.name}</h1>
+          <p className="mt-1 text-base text-white/90">Help desk</p>
         </div>
+      </header>
+
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-8 sm:px-8">
+        <ChatForm organizationId={organization.id} organizationName={organization.name} />
       </div>
+
+      <footer className="border-t border-rule bg-paper">
+        <p className="mx-auto max-w-3xl px-4 py-4 text-sm text-ink-2 sm:px-8">Support desk powered by OmniDesk AI</p>
+      </footer>
     </main>
   );
 }

@@ -6,13 +6,16 @@ import { createClient } from "@/lib/supabase/browser";
 
 export default function SignOutButton() {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function signOut() {
-    setMessage("");
-    const { error } = await createClient().auth.signOut();
-    if (error) {
-      setMessage(error.message);
+    setError("");
+    setIsSigningOut(true);
+    const { error: signOutError } = await createClient().auth.signOut();
+    if (signOutError) {
+      setError(`Sign out failed: ${signOutError.message}`);
+      setIsSigningOut(false);
       return;
     }
     router.push("/auth");
@@ -20,11 +23,15 @@ export default function SignOutButton() {
   }
 
   return (
-    <div className="text-right">
-      <button className="text-sm font-medium text-slate-600 underline underline-offset-4 hover:text-slate-950" type="button" onClick={signOut}>
-        Sign out
+    <div className="relative">
+      <button className="btn border border-white/70 px-3 py-1.5 text-sm text-white hover:bg-white hover:text-signal" type="button" onClick={signOut} disabled={isSigningOut}>
+        {isSigningOut ? "Signing out" : "Sign out"}
       </button>
-      {message && <p className="mt-2 max-w-48 text-xs text-rose-700" role="alert">{message}</p>}
+      {error && (
+        <p className="absolute top-full right-0 z-10 mt-2 w-60 border border-signal bg-paper p-2 text-xs text-signal-deep shadow-[0_4px_12px_rgba(21,23,26,0.12)]" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

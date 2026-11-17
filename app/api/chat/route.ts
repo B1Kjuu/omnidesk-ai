@@ -271,5 +271,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "We could not save the assistant response." }, { status: 500 });
   }
 
-  return Response.json({ conversationId, answer }, { status: 201 });
+  let sources: string[] = [];
+  const sourceIds = [...new Set(sourceReferences.map((reference) => reference.sourceId))];
+  if (sourceIds.length > 0) {
+    const { data: sourceRows, error: sourceNamesError } = await admin
+      .from("knowledge_sources")
+      .select("name")
+      .in("id", sourceIds)
+      .eq("organization_id", organizationId);
+
+    if (sourceNamesError) {
+      console.error("Could not load knowledge source names", sourceNamesError);
+    } else {
+      sources = sourceRows.map((source) => source.name);
+    }
+  }
+
+  return Response.json({ conversationId, answer, escalated: !usedKnowledgeContext, sources }, { status: 201 });
 }

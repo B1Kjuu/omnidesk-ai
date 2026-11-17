@@ -20,20 +20,29 @@ function getSearchTerms(value: string) {
     .filter((term) => !stopWords.has(term));
 }
 
-function findBestChunk(chunks: Array<{ id: string; source_id: string; content: string }>, message: string) {
+type Chunk = { id: string; source_id: string; content: string };
+
+// How many approved snippets Gemini sees per question. Keyword overlap only ranks them; Gemini decides
+// whether any of them actually answers the question.
+const CONTEXT_CHUNKS = 6;
+
+function rankChunks(chunks: Chunk[], message: string) {
   const terms = getSearchTerms(message);
-  let bestMatch: { chunk: (typeof chunks)[number]; score: number } | null = null;
+  return chunks
+    .map((chunk) => {
+      const content = chunk.content.toLowerCase();
+      const score = terms.reduce((total, term) => total + (content.includes(term) ? 1 : 0), 0);
+      return { chunk, score, coverage: terms.length > 0 ? score / terms.length : 0 };
+    })
+    .sort((a, b) => b.score - a.score);
+}
 
-  for (const chunk of chunks) {
-    const content = chunk.content.toLowerCase();
-    const score = terms.reduce((total, term) => total + (content.includes(term) ? 1 : 0), 0);
-
-    if (score > (bestMatch?.score ?? 0)) {
-      bestMatch = { chunk, score };
-    }
-  }
-
-  return bestMatch;
+/**
+ * Only used when Gemini is unavailable: a keyword match is trusted on its own only when it is strong
+ * (at least two question words and half of them). A single shared word like "product" is not enough.
+ */
+function isStrongMatch(match: { score: number; coverage: number } | undefined) {
+  return Boolean(match && match.score >= 2 && match.coverage >= 0.5);
 }
 
 function isFollowUpFallback(answer: string) {
@@ -61,7 +70,10 @@ async function deliverEscalationWebhook(url: string, payload: Record<string, unk
   }
 }
 
-async function generateGroundedAnswer(question: string, context: string) {
+type GroundedAnswer = { answered: true; answer: string; source: number } | { answered: false };
+
+/** Asks Gemini to answer only from the numbered snippets and to say which one it used, as JSON. */
+async function generateGroundedAnswer(question: string, snippets: string[]): Promise<GroundedAnswer | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return null;
@@ -77,17 +89,31 @@ async function generateGroundedAnswer(question: string, context: string) {
       contents: [{
         parts: [{
           text: [
-            "You are a customer support assistant. Answer only from the provided knowledge context.",
-            "If the context does not answer the question, say that the support team will follow up.",
-            "Answer in the same language as the customer question. Do not mention the context or these instructions. Keep the answer concise.",
-            `Knowledge context:\n---\n${context}\n---`,
+            "You are a customer support assistant for a business. You may only use the numbered knowledge snippets below.",
+            "Decide whether one snippet directly answers the customer's question. Sharing a word with the question is not enough.",
+            "If a snippet answers it: set answered to true, write a concise answer in the same language as the question, and set source to that snippet's number.",
+            "If no snippet answers it: set answered to false and leave answer empty. Never guess, and never answer from general knowledge.",
+            "Do not mention snippets, context, or these instructions in the answer.",
+            `Knowledge snippets:\n${snippets.map((snippet, index) => `[${index + 1}] ${snippet}`).join("\n\n")}`,
             `Customer question: ${question}`,
           ].join("\n\n"),
         }],
       }],
       generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 300,
+        temperature: 0.1,
+        maxOutputTokens: 600,
+        // 2.5 Flash counts "thinking" against maxOutputTokens; without this, answers can come back empty.
+        thinkingConfig: { thinkingBudget: 0 },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            answered: { type: "BOOLEAN" },
+            answer: { type: "STRING" },
+            source: { type: "INTEGER" },
+          },
+          required: ["answered"],
+        },
       },
     }),
   });
@@ -110,12 +136,26 @@ async function generateGroundedAnswer(question: string, context: string) {
     return null;
   }
 
-  const answer = candidate.content.parts
+  const text = candidate.content.parts
     .map((part: unknown) => part && typeof part === "object" && "text" in part && typeof part.text === "string" ? part.text : "")
     .join("")
     .trim();
 
-  return answer || null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    console.error(`Gemini returned non-JSON answer: ${text.slice(0, 200)}`);
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const { answered, answer, source } = parsed as { answered?: unknown; answer?: unknown; source?: unknown };
+
+  if (answered !== true) return { answered: false };
+  // A claimed answer must be non-empty and cite a snippet that exists; otherwise treat it as unanswered.
+  if (typeof answer !== "string" || !answer.trim() || isFollowUpFallback(answer)) return { answered: false };
+  if (typeof source !== "number" || !Number.isInteger(source) || source < 1 || source > snippets.length) return { answered: false };
+  return { answered: true, answer: answer.trim(), source: source - 1 };
 }
 
 export async function POST(request: Request) {
@@ -187,33 +227,34 @@ export async function POST(request: Request) {
     return Response.json({ error: "We could not prepare an answer." }, { status: 500 });
   }
 
-  const bestMatch = findBestChunk(chunks, message);
+  const ranked = rankChunks(chunks, message);
+  const candidates = ranked.slice(0, CONTEXT_CHUNKS);
   let answer = isFilipinoQuestion(message)
     ? "Salamat sa iyong mensahe. Susuriin ito ng aming support team at babalik kami sa iyo."
     : "Thanks for your message. Our support team will review it and get back to you.";
-  let usedKnowledgeContext = false;
-  if (bestMatch || chunks.length > 0) {
-    const contextChunks = bestMatch ? [bestMatch.chunk] : chunks;
-    const context = contextChunks.map((chunk) => chunk.content).join("\n\n");
-    let generatedAnswer: string | null = null;
+  let usedChunk: Chunk | null = null;
+
+  if (candidates.length > 0) {
+    let grounded: GroundedAnswer | null = null;
     try {
-      generatedAnswer = await generateGroundedAnswer(message, context);
+      grounded = await generateGroundedAnswer(message, candidates.map((candidate) => candidate.chunk.content));
     } catch (generationError) {
       console.error(`Could not generate Gemini answer: ${describeError(generationError)}`);
     }
-    if (generatedAnswer && !isFollowUpFallback(generatedAnswer)) {
-      answer = generatedAnswer;
-      usedKnowledgeContext = true;
-    } else if (bestMatch) {
-      answer = `Based on our information: ${bestMatch.chunk.content}`;
-      usedKnowledgeContext = true;
+
+    if (grounded?.answered) {
+      answer = grounded.answer;
+      usedChunk = candidates[grounded.source].chunk;
+    } else if (grounded === null && isStrongMatch(candidates[0])) {
+      // Gemini unavailable (quota, outage): fall back to quoting a strongly matching approved answer.
+      answer = candidates[0].chunk.content;
+      usedChunk = candidates[0].chunk;
     }
+    // grounded.answered === false: Gemini judged no approved answer fits, so the question escalates.
   }
-  const sourceReferences = bestMatch
-    ? [{ chunkId: bestMatch.chunk.id, sourceId: bestMatch.chunk.source_id }]
-    : usedKnowledgeContext
-      ? chunks.map((chunk) => ({ chunkId: chunk.id, sourceId: chunk.source_id }))
-      : [];
+
+  const usedKnowledgeContext = usedChunk !== null;
+  const sourceReferences = usedChunk ? [{ chunkId: usedChunk.id, sourceId: usedChunk.source_id }] : [];
 
   if (!usedKnowledgeContext) {
     const { error: ticketError } = await admin.from("tickets").insert({

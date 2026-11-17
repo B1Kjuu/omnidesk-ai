@@ -66,7 +66,7 @@ export default function SetupRoute({
               </span>
               <div className="md:mt-3 md:pr-4">
                 <p className={`font-bold ${step.done ? "text-ink-2 line-through decoration-1" : ""}`}>{step.title}</p>
-                {isNext && <p className="mt-1 text-sm leading-relaxed text-ink-2 [&_a]:font-bold [&_a]:text-signal-deep [&_a]:underline">{step.action}</p>}
+                {isNext && <p className="mt-1 text-sm/relaxed text-ink-2 [&_a]:font-bold [&_a]:text-signal-deep [&_a]:underline">{step.action}</p>}
               </div>
             </li>
           );

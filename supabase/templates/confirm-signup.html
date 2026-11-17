@@ -1,0 +1,28 @@
+  <!-- Supabase → Authentication → Email Templates → "Confirm signup". Subject: Confirm your OmniDesk account -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f2f4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #d9dce1;">
+          <tr>
+            <td style="background:#d0261d;padding:14px 24px;font:700 18px/1 Arial,Helvetica,sans-serif;color:#ffffff;">OmniDesk</td>
+          </tr>
+          <tr>
+            <td style="padding:28px 24px;">
+              <h1 style="margin:0 0 8px;font:700 26px/1.2 Arial,Helvetica,sans-serif;color:#15171a;">Confirm your email</h1>
+              <p style="margin:0 0 24px;font:400 16px/1.5 Arial,Helvetica,sans-serif;color:#4a515b;">
+                One step left. Confirm {{ .Email }} and you will land on your desk, ready to create your first organization.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                <td style="background:#d0261d;">
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard" style="display:inline-block;padding:12px 20px;font:700 16px/1 Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;">Confirm and open my desk</a>
+                </td>
+              </tr></table>
+              <p style="margin:24px 0 0;font:400 14px/1.5 Arial,Helvetica,sans-serif;color:#4a515b;">
+                The link works once. If you did not sign up for OmniDesk, ignore this email and no account will be activated.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>

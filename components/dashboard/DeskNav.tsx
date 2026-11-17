@@ -45,7 +45,7 @@ export default function DeskNav({ counts }: { counts: NavCounts | null }) {
                 <span className="flex-1">{item.label}</span>
                 {count !== undefined && (
                   <span
-                    className={`min-w-6 rounded-[2px] px-1.5 text-center font-mono text-xs leading-5 ${
+                    className={`min-w-6 rounded-[2px] px-1.5 text-center font-mono text-xs/5 ${
                       alert ? "bg-notice text-ink" : active ? "bg-white/15 text-white" : "bg-paper text-ink-2"
                     }`}
                   >

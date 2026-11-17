@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import DeskNav from "@/components/dashboard/DeskNav";
+import LiveRefresh from "@/components/dashboard/LiveRefresh";
 import Wordmark from "@/components/ui/Wordmark";
 import { getDesk } from "@/lib/dashboard/getDesk";
 import SignOutButton from "./SignOutButton";
@@ -29,6 +30,7 @@ async function NavWithCounts() {
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   return (
     <div className="flex flex-1 flex-col bg-platform">
+      <LiveRefresh />
       <header className="bg-signal">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
           <Wordmark href="/dashboard" />

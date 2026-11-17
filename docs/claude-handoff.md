@@ -79,3 +79,13 @@ The MVP work is committed and pushed to `origin/main` as `f130db1`. Do not commi
 - In Supabase Cloud, set Authentication > URL Configuration > Site URL to the Vercel production URL so email-confirmation links land on the deployed app.
 - Supabase Cloud requires email confirmation by default; the sign-up form already tells users to confirm and then sign in.
 - The built-in Supabase email sender is heavily rate-limited; use few sign-ups during the smoke test or configure custom SMTP.
+
+## Milestone 1: launch safely (code done, uncommitted)
+
+- `/api/chat`: Turnstile check, Postgres rate limits (`hit_rate_limit`, fails open), per-org email cap, Gemini key in header, timeouts on Gemini and n8n.
+- Escalation email rendered in `lib/email/escalationEmail.ts`; webhook body carries `notifyEmail`, `replyTo`, `email.{subject,html,text}`.
+- Per-organization recipient: `organizations.notification_email`, edited in Dashboard → Organizations; falls back to the creator.
+- Auth: `/auth/confirm` (PKCE code or token_hash), reset mode on `/auth?mode=reset`, `/auth/update-password`, resend confirmation.
+- Sentry via `instrumentation.ts`, `instrumentation-client.ts`, `sentry.*.config.ts`, `app/error.tsx`, `app/global-error.tsx`; off without a DSN.
+- Lint enforces Tailwind canonical classes (`eslint-plugin-better-tailwindcss`); CI in `.github/workflows/ci.yml`.
+- Pending owner steps: `docs/milestone-1-setup.md` (migration push needs approval, Supabase URL config/templates, Turnstile keys, Sentry DSN, n8n Gmail node fields).

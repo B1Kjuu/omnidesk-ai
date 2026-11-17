@@ -26,8 +26,8 @@ export default async function CustomerChatPage({ params }: Params) {
   return (
     <main className="flex flex-1 flex-col bg-platform">
       <header className="bg-signal text-white">
-        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
-          <h1 className="text-3xl leading-tight font-bold tracking-[-0.02em] sm:text-4xl">{organization.name}</h1>
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:p-8">
+          <h1 className="text-3xl/tight font-bold tracking-[-0.02em] sm:text-4xl">{organization.name}</h1>
           <p className="mt-1 text-base text-white/90">Help desk</p>
         </div>
       </header>
@@ -37,7 +37,7 @@ export default async function CustomerChatPage({ params }: Params) {
       </div>
 
       <footer className="border-t border-rule bg-paper">
-        <p className="mx-auto max-w-3xl px-4 py-4 text-sm text-ink-2 sm:px-8">Support desk powered by OmniDesk AI</p>
+        <p className="mx-auto max-w-3xl p-4 text-sm text-ink-2 sm:px-8">Support desk powered by OmniDesk AI</p>
       </footer>
     </main>
   );

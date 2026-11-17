@@ -1,4 +1,15 @@
+import { renderEscalationEmail } from "@/lib/email/escalationEmail";
+import { clientKey, firstExceededLimit } from "@/lib/server/rateLimit";
+import { verifyTurnstile } from "@/lib/server/turnstile";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// Public endpoint: every request can cost a Gemini call and an email, so it is limited per visitor and per desk.
+const CHAT_LIMITS = (visitor: string, organizationId: string) => [
+  { bucket: `chat:visitor:${visitor}:min`, max: 6, windowSeconds: 60 },
+  { bucket: `chat:visitor:${visitor}:day`, max: 60, windowSeconds: 86_400 },
+  { bucket: `chat:org:${organizationId}:hour`, max: 300, windowSeconds: 3_600 },
+];
+const EMAIL_LIMIT = (organizationId: string) => ({ bucket: `email:org:${organizationId}:hour`, max: 30, windowSeconds: 3_600 });
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const stopWords = new Set(["about", "after", "again", "could", "from", "have", "that", "this", "what", "when", "where", "which", "with", "would", "your"]);
@@ -33,10 +44,15 @@ function isFilipinoQuestion(question: string) {
 }
 
 async function deliverEscalationWebhook(url: string, payload: Record<string, unknown>) {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  // Matches an n8n "Header Auth" credential so only OmniDesk can trigger the Gmail workflow.
+  if (process.env.N8N_WEBHOOK_SECRET) headers["x-omnidesk-secret"] = process.env.N8N_WEBHOOK_SECRET;
+
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
@@ -51,9 +67,11 @@ async function generateGroundedAnswer(question: string, context: string) {
   }
 
   const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    // Key in a header, not the URL, so it never lands in request logs.
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    signal: AbortSignal.timeout(15_000),
     body: JSON.stringify({
       contents: [{
         parts: [{
@@ -116,6 +134,7 @@ export async function POST(request: Request) {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const email = typeof input.email === "string" ? input.email.trim() : "";
   const message = typeof input.message === "string" ? input.message.trim() : "";
+  const turnstileToken = typeof input.turnstileToken === "string" ? input.turnstileToken : "";
 
   if (!uuidPattern.test(organizationId)) {
     return Response.json({ error: "A valid organization is required." }, { status: 400 });
@@ -124,7 +143,20 @@ export async function POST(request: Request) {
     return Response.json({ error: "Please check the submitted fields." }, { status: 400 });
   }
 
+  const remoteIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  if (!(await verifyTurnstile(turnstileToken, remoteIp, request.headers.get("host")))) {
+    return Response.json({ error: "We could not confirm you are human. Refresh the page and try again." }, { status: 403 });
+  }
+
   const admin = createAdminClient();
+  const exceeded = await firstExceededLimit(admin, CHAT_LIMITS(await clientKey(request), organizationId));
+  if (exceeded) {
+    return Response.json(
+      { error: "Too many questions in a short time. Please wait a moment and try again." },
+      { status: 429, headers: { "retry-after": String(exceeded.windowSeconds) } },
+    );
+  }
+
   const { data, error } = await admin.rpc("create_public_conversation", {
     target_organization_id: organizationId,
     customer_name: name,
@@ -225,22 +257,59 @@ export async function POST(request: Request) {
     }
 
     const webhookUrl = process.env.N8N_ESCALATION_WEBHOOK_URL;
-    if (webhookUrl) {
+    const emailCapped = webhookUrl ? await firstExceededLimit(admin, [EMAIL_LIMIT(organizationId)]) : null;
+    if (webhookUrl && emailCapped) {
+      await admin
+        .from("workflow_events")
+        .update({ status: "failed", last_error: "Hourly email limit reached; the ticket is still open in the dashboard." })
+        .eq("id", workflowEvent.id);
+    } else if (webhookUrl) {
       await admin
         .from("workflow_events")
         .update({ status: "processing" })
         .eq("id", workflowEvent.id);
 
       try {
+        const [{ data: organization }, { data: configuredRecipient, error: recipientError }] = await Promise.all([
+          admin.from("organizations").select("name, created_by").eq("id", organizationId).single(),
+          admin.rpc("get_notification_recipient", { target_organization_id: organizationId }),
+        ]);
+        let notifyEmail = configuredRecipient;
+        if (recipientError || !notifyEmail) {
+          // Fallback keeps emails flowing even before the notification migration is applied.
+          if (recipientError) console.error("Notification recipient lookup failed, using creator email", recipientError);
+          const creator = organization ? await admin.auth.admin.getUserById(organization.created_by) : null;
+          notifyEmail = creator?.data.user?.email ?? null;
+        }
+        if (!notifyEmail) {
+          throw new Error("No notification recipient for this organization");
+        }
+
+        const origin = process.env.SITE_URL?.replace(/\/$/, "") || new URL(request.url).origin;
+        const organizationName = organization?.name ?? "your desk";
+        const emailContent = renderEscalationEmail({
+          organizationName,
+          customerName: name,
+          customerEmail: email || null,
+          question: message,
+          askedAt: new Date(),
+          dashboardUrl: `${origin}/dashboard/escalations`,
+          settingsUrl: `${origin}/dashboard/organizations`,
+        });
+
         await deliverEscalationWebhook(webhookUrl, {
           eventId: workflowEvent.id,
           eventType: "conversation.escalated",
           organizationId,
+          organizationName,
           conversationId,
           customerName: name,
           customerEmail: email || null,
           customerMessage: message,
           ticketCategory: "knowledge_gap",
+          notifyEmail,
+          replyTo: email || notifyEmail,
+          email: emailContent,
         });
 
         await admin

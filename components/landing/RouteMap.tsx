@@ -14,8 +14,8 @@ const markerColor: Record<Line, string> = {
 function Track({ line, children, className = "" }: { line: Line; children: ReactNode; className?: string }) {
   return (
     <div className={`relative pl-16 ${className}`}>
-      <span className="absolute top-0 bottom-0 left-4.5 w-1 bg-rule" aria-hidden="true" />
-      <span className={`route-fill absolute top-0 bottom-0 left-4.5 w-1 ${lineColor[line]}`} aria-hidden="true" />
+      <span className="absolute inset-y-0 left-4.5 w-1 bg-rule" aria-hidden="true" />
+      <span className={`route-fill absolute inset-y-0 left-4.5 w-1 ${lineColor[line]}`} aria-hidden="true" />
       {children}
     </div>
   );
@@ -27,8 +27,8 @@ function Station({ line, icon, title, children, last = false }: { line: Line; ic
       <span className={`absolute top-0 -left-16 grid size-10 place-items-center rounded-full border-4 ${markerColor[line]}`}>
         <Icon name={icon} className="size-4" />
       </span>
-      <h3 className="pt-1 text-2xl leading-tight font-bold tracking-[-0.01em] sm:text-3xl">{title}</h3>
-      <div className="mt-2 max-w-[46ch] text-base leading-relaxed text-ink-2 sm:text-lg">{children}</div>
+      <h3 className="pt-1 text-2xl/tight font-bold tracking-[-0.01em] sm:text-3xl">{title}</h3>
+      <div className="mt-2 max-w-[46ch] text-base/relaxed text-ink-2 sm:text-lg">{children}</div>
     </div>
   );
 }

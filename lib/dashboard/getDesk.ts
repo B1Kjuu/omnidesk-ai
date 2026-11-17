@@ -21,9 +21,12 @@ export function plural(count: number, noun: string) {
 export const getDesk = cache(async () => {
   await connection();
   const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  // getClaims verifies the JWT locally (asymmetric signing keys), saving a round trip to the Auth server
+  // on every dashboard request. Data access is still enforced by RLS in Postgres.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
 
-  if (userError || !userData.user) {
+  if (claimsError || !claims?.sub) {
     redirect("/auth?reason=session-expired");
   }
 
@@ -122,7 +125,7 @@ export const getDesk = cache(async () => {
   const failedEvents = workflowEvents.filter((event) => event.status === "failed");
 
   return {
-    email: userData.user.email ?? "",
+    email: typeof claims.email === "string" ? claims.email : "",
     organizations,
     multipleOrganizations,
     conversations: conversationItems,

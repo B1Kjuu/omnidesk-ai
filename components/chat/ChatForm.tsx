@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Icon from "@/components/ui/Icon";
 import { askDesk, formatClock, type DeskReply } from "@/lib/askDesk";
+import { useTurnstile } from "@/lib/useTurnstile";
 import { getStatus, replyToneClasses } from "@/lib/status";
 
 type Exchange = {
@@ -20,11 +21,13 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
   const [message, setMessage] = useState("");
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const { mount: mountTurnstile, ready: turnstileReady, failed: turnstileFailed, consume: consumeTurnstile } = useTurnstile();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const question = message.trim();
-    if (!question || !name.trim()) return;
+    if (!question || !name.trim() || !turnstileReady) return;
+    const turnstileToken = consumeTurnstile();
 
     const id = crypto.randomUUID();
     setExchanges((items) => [...items, { id, time: formatClock(new Date()), question, reply: null, error: null }]);
@@ -32,7 +35,7 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
     setIdentified(true);
     setIsSending(true);
 
-    const result = await askDesk({ organizationId, name: name.trim(), email: email.trim(), message: question });
+    const result = await askDesk({ organizationId, name: name.trim(), email: email.trim(), message: question, turnstileToken });
     setExchanges((items) =>
       items.map((item) => (item.id !== id ? item : result.ok ? { ...item, reply: result.reply } : { ...item, error: result.error })),
     );
@@ -44,7 +47,7 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
       {exchanges.length === 0 ? (
         <div className="max-w-[60ch]">
           <h2 className="text-xl font-bold">Ask {organizationName} a question</h2>
-          <p className="mt-2 text-base leading-relaxed text-ink-2">
+          <p className="mt-2 text-base/relaxed text-ink-2">
             Answers come from {organizationName}&apos;s approved help articles. If none of them covers your question, it goes straight to a person on the team.
           </p>
         </div>
@@ -55,7 +58,7 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
               <time className="pt-0.5 font-mono text-sm font-bold text-ink-2">{item.time}</time>
               <div className="border-l-2 border-ink pl-5">
                 <p className="text-xs font-bold tracking-wide text-ink-2 uppercase">You asked</p>
-                <p className="mt-1 text-lg leading-snug">{item.question}</p>
+                <p className="mt-1 text-lg/snug">{item.question}</p>
 
                 <div className="mt-4 border-t border-dashed border-rule-strong pt-4">
                   {item.error ? (
@@ -66,7 +69,7 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
                     </p>
                   ) : (
                     <>
-                      <p className="max-w-[65ch] text-base leading-relaxed whitespace-pre-wrap">{item.reply.answer}</p>
+                      <p className="max-w-[65ch] text-base/relaxed whitespace-pre-wrap">{item.reply.answer}</p>
                       {item.reply.escalated ? (
                         <p className={`mt-3 flex items-start gap-2 px-3 py-2 text-sm font-bold ${replyToneClasses[getStatus("reply", "staff").tone]}`}>
                           <Icon name="person" className="mt-0.5 size-4 shrink-0" />
@@ -131,10 +134,14 @@ export default function ChatForm({ organizationId, organizationName }: { organiz
             if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit();
           }}
         />
+        <div ref={mountTurnstile} className="mt-3 empty:hidden" />
+        {turnstileFailed && (
+          <p className="mt-3 alert-error" role="alert">The security check could not load. Disable content blockers for this page or refresh it.</p>
+        )}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="hidden text-sm text-ink-2 sm:block">Ctrl or ⌘ + Enter to send</p>
-          <button className="btn btn-primary px-6" type="submit" disabled={isSending || !message.trim() || !name.trim()}>
-            {isSending ? "Sending" : "Send question"}
+          <button className="btn btn-primary px-6" type="submit" disabled={isSending || !message.trim() || !name.trim() || !turnstileReady}>
+            {isSending ? "Sending" : turnstileReady ? "Send question" : "Checking connection"}
             <Icon name="arrow" />
           </button>
         </div>

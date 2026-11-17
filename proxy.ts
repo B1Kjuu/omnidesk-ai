@@ -23,7 +23,8 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // Refreshes an expiring session and writes the new cookies; verifies locally where possible.
+  await supabase.auth.getClaims();
   return response;
 }
 

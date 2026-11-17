@@ -9,6 +9,7 @@ type AskInput = {
   name: string;
   email?: string;
   message: string;
+  turnstileToken?: string;
 };
 
 export async function askDesk(input: AskInput): Promise<{ ok: true; reply: DeskReply } | { ok: false; error: string }> {

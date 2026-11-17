@@ -232,7 +232,15 @@ A black board whose title is the page headline, with a live clock in mono, colum
 Stations on a 4px track with 40px ringed stops. The trunk is ink; it splits into a green "answered" branch and a yellow "staff" branch joined by a horizontal switch. Where scroll-driven animation is supported, each track draws as the section scrolls past; otherwise, and under reduced motion, it is fully drawn. The dashboard setup checklist uses the same stop language at small scale.
 
 ### Motion
-Motion has one focal job, showing questions departing on the board. Everything else is feedback: 150ms colour transitions on controls and a 3px arrow lean on button hover (the button itself never moves). Product screens have no entrance choreography.
+Landing motion is built with GSAP (ScrollTrigger, SplitText, DrawSVG, MotionPath), registered once in `lib/gsap.ts` and always gated by `gsap.matchMedia("(prefers-reduced-motion: no-preference)")`; content is fully visible without it.
+- **Hero:** headline letters flip down from a top hinge like split-flap tiles; board rows cascade in; the board recedes slightly as the visitor scrolls away.
+- **Ticker:** a red band of example departures loops and leans with scroll velocity; it pauses off screen.
+- **Route journey (desktop):** a pinned, scroll-scrubbed rail map where a question ticket rides to the knowledge stop and down the green line, then a second ticket rides the yellow staff line to a ticket and an email. Phones and reduced motion get the static route map.
+- **Platforms and timetable:** signs and rows flip in once as they enter view.
+Product screens have no entrance choreography: 150ms colour transitions on controls and a 3px arrow lean on button hover (the button itself never moves).
+
+### shadcn/ui
+shadcn/ui components (`components/ui/*.tsx` in lowercase) are themed through the semantic variables in `globals.css`, mapped onto this palette: primary is signal red, borders are rule greys, ring is signal red, radius is the 2px sign corner, and `.dark` is the departure board. Use them for complex primitives (accordion, sheet, tooltip); the house `.btn` and `.field` classes remain the default for simple controls.
 
 ## Do's and Don'ts
 

@@ -136,7 +136,7 @@ export default function KnowledgeSourceList({ sources, showOrganization }: { sou
                   </div>
                   <StatusTag domain="knowledge" value={source.status} />
                 </div>
-                <p className="mt-2 line-clamp-2 max-w-[75ch] text-[0.9375rem] leading-relaxed text-ink-2">{source.content || "No content"}</p>
+                <p className="mt-2 line-clamp-2 max-w-[75ch] text-[0.9375rem]/relaxed text-ink-2">{source.content || "No content"}</p>
                 <div className="mt-2 -ml-2 flex gap-1">
                   <button className="btn btn-quiet py-1.5 text-sm" type="button" onClick={() => startEditing(source)}>
                     Edit

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Icon from "@/components/ui/Icon";
 import { askDesk, formatClock } from "@/lib/askDesk";
+import { gsap, MOTION_OK, SplitText, useGSAP } from "@/lib/gsap";
+import { useTurnstile } from "@/lib/useTurnstile";
 import { boardToneClasses, getStatus } from "@/lib/status";
 import SplitFlap from "./SplitFlap";
 
@@ -74,7 +76,7 @@ function Row({ row, time, hangs, delay }: { row: BoardRow; time: string; hangs: 
         <time className="font-mono text-base font-bold text-notice">
           <SplitFlap text={time} delay={delay} />
         </time>
-        <p className="text-base leading-snug text-board-ink sm:text-lg">{row.question}</p>
+        <p className="text-base/snug text-board-ink sm:text-lg">{row.question}</p>
         <p className="col-start-2 text-sm text-board-ink-2 sm:col-start-auto">
           <SplitFlap text={sourceText(row)} delay={delay + 60} />
         </p>
@@ -85,7 +87,7 @@ function Row({ row, time, hangs, delay }: { row: BoardRow; time: string; hangs: 
       {row.answer && (
         <div className="grid grid-cols-[3.25rem_1fr] gap-x-4 pb-4 sm:grid-cols-[4.5rem_1fr]">
           <span aria-hidden="true" />
-          <p className="max-w-[65ch] border-t border-dashed border-board-rule pt-3 text-[0.9375rem] leading-relaxed text-board-ink-2">
+          <p className="max-w-[65ch] border-t border-dashed border-board-rule pt-3 text-[0.9375rem]/relaxed text-board-ink-2">
             <span className="mr-2 font-bold text-board-ink">Reply</span>
             {row.answer}
           </p>
@@ -107,6 +109,7 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
   const [liveRows, setLiveRows] = useState<BoardRow[]>([]);
   const [question, setQuestion] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const { mount: mountTurnstile, ready: turnstileReady, failed: turnstileFailed, consume: consumeTurnstile } = useTurnstile("dark");
 
   // The board clock; the opening rows are pinned to the first reading.
   useEffect(() => {
@@ -131,6 +134,34 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
     return () => observer.disconnect();
   }, []);
 
+  // Opening sequence: the headline flips in letter by letter, then the board rows drop in.
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_OK, () => {
+        const split = SplitText.create(".js-headline", { type: "words,chars", charsClass: "inline-block" });
+        const intro = gsap.timeline({ defaults: { ease: "power3.out" } });
+        intro
+          .from(split.chars, { rotationX: -95, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.55, stagger: 0.022 })
+          .from(".js-lede", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.35")
+          .from(".js-board-head", { autoAlpha: 0, duration: 0.4 }, "-=0.3")
+          .from(".js-board li", { rotationX: -80, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.5, stagger: 0.07 }, "-=0.25")
+          .from(".js-board-foot", { y: 12, autoAlpha: 0, duration: 0.4 }, "-=0.2");
+
+        // Leaving the hero, the board recedes like a platform falling behind the train.
+        gsap.to(".js-board-stage", {
+          scale: 0.94,
+          autoAlpha: 0.35,
+          ease: "none",
+          scrollTrigger: { trigger: boardRef.current, start: "top top", end: "bottom top", scrub: true },
+        });
+
+        return () => split.revert();
+      });
+    },
+    { scope: boardRef },
+  );
+
   const paused = !inView || isSending || question.length > 0 || liveRows.length > 0;
 
   // New departures arrive while the board is visible; the oldest leaves.
@@ -147,15 +178,16 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!demoOrganizationId || !question.trim()) return;
+    if (!demoOrganizationId || !question.trim() || !turnstileReady) return;
 
+    const turnstileToken = consumeTurnstile();
     const id = crypto.randomUUID();
     const asked = question.trim();
     setLiveRows((current) => [{ id, question: asked, state: "checking", sources: [], at: Date.now(), offsetMinutes: 0, fresh: true }, ...current]);
     setQuestion("");
     setIsSending(true);
 
-    const result = await askDesk({ organizationId: demoOrganizationId, name: "Portfolio visitor", message: asked });
+    const result = await askDesk({ organizationId: demoOrganizationId, name: "Portfolio visitor", message: asked, turnstileToken });
     setLiveRows((current) =>
       current.map((row) => {
         if (row.id !== id) return row;
@@ -170,27 +202,27 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
   const hangingId = allRows.find((row) => row.state === "staff")?.id;
 
   return (
-    <section ref={boardRef} aria-labelledby="board-title" className="overflow-hidden bg-board text-board-ink">
-      <div className="mx-auto max-w-6xl px-4 pt-10 pb-6 sm:px-10 sm:pt-12">
+    <section ref={boardRef} aria-labelledby="board-title" className="led-field overflow-hidden bg-board text-board-ink perspective-distant">
+      <div className="js-board-stage mx-auto max-w-6xl origin-top px-4 pt-10 pb-6 sm:px-10 sm:pt-12">
         <div className="flex items-start justify-between gap-6">
-          <h1 id="board-title" className="max-w-[16ch] text-5xl leading-[0.98] font-bold tracking-[-0.035em] sm:text-7xl lg:text-[5rem]">
+          <h1 id="board-title" className="js-headline max-w-[16ch] text-5xl leading-[0.98] font-bold tracking-[-0.035em] text-wrap sm:text-7xl lg:text-[5rem]">
             Every answer leaves with its source.
           </h1>
           <time className="shrink-0 font-mono text-2xl font-bold text-notice sm:text-4xl" dateTime={now ? new Date(now).toISOString() : undefined}>
             {now ? formatClock(new Date(now)) : "--:--"}
           </time>
         </div>
-        <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-board-ink-2 sm:text-xl">
+        <p className="js-lede mt-5 max-w-[58ch] text-lg/relaxed text-board-ink-2 sm:text-xl">
           OmniDesk answers customers only from a business&apos;s approved knowledge. When that knowledge runs out, the question goes to a person instead of a guess.
         </p>
 
-        <div className="mt-10 hidden grid-cols-[4.5rem_1fr_12rem_9.5rem] gap-x-4 pb-2 text-xs font-bold tracking-wide text-board-ink-2 uppercase sm:grid lg:grid-cols-[4.5rem_1fr_15rem_9.5rem]">
+        <div className="js-board-head mt-10 hidden grid-cols-[4.5rem_1fr_12rem_9.5rem] gap-x-4 pb-2 text-xs font-bold tracking-wide text-board-ink-2 uppercase sm:grid lg:grid-cols-[4.5rem_1fr_15rem_9.5rem]">
           <span>Time</span>
           <span>Customer question</span>
           <span>Answered from</span>
           <span className="text-right">Status</span>
         </div>
-        <ol className="mt-8 sm:mt-0" aria-label="Departure board of customer questions" aria-live="off">
+        <ol className="js-board mt-8 transform-3d sm:mt-0" aria-label="Departure board of customer questions" aria-live="off">
           {allRows.map((row, index) => (
             <Row
               key={row.id}
@@ -202,23 +234,27 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
           ))}
         </ol>
 
-        <div className="border-t-2 border-board-ink py-5">
+        <div className="js-board-foot border-t-2 border-board-ink py-5">
           {demoOrganizationId ? (
             <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[4.5rem_1fr_auto] sm:items-center sm:gap-x-4">
               <span className="hidden font-mono text-base font-bold text-notice sm:block">Now</span>
               <label className="sr-only" htmlFor="desk-question">Ask the demo desk a question</label>
               <input
                 id="desk-question"
-                className="w-full rounded-[2px] border border-board-rule bg-board-2 px-4 py-3 text-lg text-board-ink placeholder:text-board-ink-2 focus:border-board-ink focus:outline-none"
+                className="w-full rounded-xs border border-board-rule bg-board-2 px-4 py-3 text-lg text-board-ink placeholder:text-board-ink-2 focus:border-board-ink focus:outline-none"
                 placeholder="Ask the demo desk, for example: How long do refunds take?"
                 maxLength={500}
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
               />
-              <button className="btn btn-primary px-6 py-3 text-base" type="submit" disabled={isSending || !question.trim()}>
+              <button className="btn btn-primary px-6 py-3 text-base" type="submit" disabled={isSending || !question.trim() || !turnstileReady}>
                 {isSending ? "Sending" : "Ask the desk"}
                 <Icon name="arrow" />
               </button>
+              <div ref={mountTurnstile} className="empty:hidden sm:col-start-2" />
+              {turnstileFailed && (
+                <p className="text-sm font-bold text-notice sm:col-start-2" role="alert">The security check could not load. Refresh the page to ask the desk.</p>
+              )}
               <p className="text-sm text-board-ink-2 sm:col-start-2">
                 Live demo desk with a few approved FAQs. Rows below your question are illustrative; your question is answered for real.
               </p>

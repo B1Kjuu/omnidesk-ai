@@ -52,7 +52,7 @@ export default function ConversationList({ conversations }: { conversations: Con
                         {senderLabel[message.sender_type] ?? message.sender_type}
                         <LocalTime iso={message.created_at} className="font-normal normal-case" />
                       </p>
-                      <p className="mt-1 max-w-[70ch] text-[0.9375rem] leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                      <p className="mt-1 max-w-[70ch] text-[0.9375rem]/relaxed whitespace-pre-wrap">{message.content}</p>
                       {message.sender_type === "assistant" && (
                         message.grounded ? (
                           <p className="mt-1.5 flex items-center gap-1.5 text-sm text-go">

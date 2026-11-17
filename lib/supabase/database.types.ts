@@ -189,17 +189,31 @@ isOneToOne: false
                   ]
                 },"organizations": {
                   Row: {
-                    "created_at": string,"created_by": string,"id": string,"name": string
+                    "created_at": string,"created_by": string,"id": string,"name": string,"notification_email": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"created_by": string,"id"?: string,"name": string
+                    "created_at"?: string,"created_by": string,"id"?: string,"name": string,"notification_email"?: string | null
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string
+                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string,"notification_email"?: string | null
                   }
                   Relationships: [
-                    
+
+                  ]
+                },"rate_limits": {
+                  Row: {
+                    "bucket": string,"hits": number,"window_start": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "bucket": string,"hits"?: number,"window_start": string
+                  }
+                  Update: {
+                    "bucket"?: string,"hits"?: number,"window_start"?: string
+                  }
+                  Relationships: [
+
                   ]
                 },"tickets": {
                   Row: {
@@ -253,6 +267,12 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
+            "get_notification_recipient":
+{ Args: { "target_organization_id": string }; Returns: string | null
+                           },
+            "hit_rate_limit":
+{ Args: { "bucket_key": string,"max_hits": number,"window_seconds": number }; Returns: boolean
+                           },
             "update_ticket":
 { Args: { "new_priority": string,"new_status": string,"target_ticket_id": string }; Returns: {
               "conversation_status": string,"ticket_id": string

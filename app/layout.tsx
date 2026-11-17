@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
 import "./globals.css";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 const atkinson = Atkinson_Hyperlegible_Next({
   variable: "--font-atkinson",
@@ -23,8 +25,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${atkinson.variable} ${atkinsonMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+    <html lang="en" className={cn("h-full", "antialiased", atkinson.variable, atkinsonMono.variable, "font-sans")}>
+      <body className="flex min-h-full flex-col">
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }

@@ -74,7 +74,7 @@ export default function TicketList({ tickets }: { tickets: TicketItem[] }) {
                     <StatusTag domain="ticket" value={ticket.status} />
                     <StatusTag domain="priority" value={ticket.priority} />
                   </div>
-                  {ticket.question && <p className="mt-2 max-w-[70ch] text-[0.9375rem] leading-relaxed">&ldquo;{ticket.question}&rdquo;</p>}
+                  {ticket.question && <p className="mt-2 max-w-[70ch] text-[0.9375rem]/relaxed">&ldquo;{ticket.question}&rdquo;</p>}
                   <p className="mt-2 text-sm text-ink-2">
                     <LocalTime iso={ticket.created_at} /> · {categoryLabel[ticket.category] ?? ticket.category}
                     {ticket.organization_name && <> · {ticket.organization_name}</>}

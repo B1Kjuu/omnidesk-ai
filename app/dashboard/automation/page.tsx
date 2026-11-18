@@ -3,6 +3,7 @@ import WorkflowEventList from "@/components/dashboard/WorkflowEventList";
 import { getDesk } from "@/lib/dashboard/getDesk";
 
 export const instant = false;
+export const metadata = { title: "Automation" };
 
 export default async function AutomationPage() {
   const desk = await getDesk();

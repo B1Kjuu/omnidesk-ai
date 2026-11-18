@@ -9,6 +9,7 @@ import { publicOrigin } from "@/lib/publicOrigin";
 import { getDesk, plural } from "@/lib/dashboard/getDesk";
 
 export const instant = false;
+export const metadata = { title: "Overview" };
 
 function PanelLink({ href, children }: { href: string; children: string }) {
   return (
@@ -65,7 +66,7 @@ export default async function OverviewPage() {
           <div className="grid gap-8 xl:grid-cols-2">
             <Panel title="Waiting on staff" action={<PanelLink href="/dashboard/escalations">All escalations</PanelLink>}>
               {waiting.length === 0 ? (
-                <p className="py-4 text-[0.9375rem] leading-relaxed text-ink-2">Nothing is waiting. Every recent question was answered from your knowledge.</p>
+                <p className="py-4 text-[0.9375rem]/relaxed text-ink-2">Nothing is waiting. Every recent question was answered from your knowledge.</p>
               ) : (
                 <ul>
                   {waiting.map((ticket) => (
@@ -84,7 +85,7 @@ export default async function OverviewPage() {
 
             <Panel title="Latest questions" action={<PanelLink href="/dashboard/inbox">Open inbox</PanelLink>}>
               {latest.length === 0 ? (
-                <p className="py-4 text-[0.9375rem] leading-relaxed text-ink-2">No questions yet. Share your customer chat page to receive the first one.</p>
+                <p className="py-4 text-[0.9375rem]/relaxed text-ink-2">No questions yet. Share your customer chat page to receive the first one.</p>
               ) : (
                 <ul>
                   {latest.map((conversation) => (

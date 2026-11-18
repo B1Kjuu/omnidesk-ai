@@ -30,10 +30,21 @@ const copy: Record<AuthMode, { title: string; lead: string; submit: string; busy
 /** Where Supabase email links land; must be listed under Auth → URL Configuration → Redirect URLs. */
 const confirmUrl = (next: string) => `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`;
 
-export default function AuthForm({ initialMode = "sign-in", initialNotice = "" }: { initialMode?: AuthMode; initialNotice?: string }) {
+/** `next` is a same-site path to return to after signing in (e.g. an invitation link). */
+export default function AuthForm({
+  initialMode = "sign-in",
+  initialNotice = "",
+  next = "/dashboard",
+  initialEmail = "",
+}: {
+  initialMode?: AuthMode;
+  initialNotice?: string;
+  next?: string;
+  initialEmail?: string;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState(initialNotice);
   const [error, setError] = useState("");
@@ -54,7 +65,7 @@ export default function AuthForm({ initialMode = "sign-in", initialNotice = "" }
       const { error: resendError } = await createClient().auth.resend({
         type: "signup",
         email,
-        options: { emailRedirectTo: confirmUrl("/dashboard") },
+        options: { emailRedirectTo: confirmUrl(next) },
       });
       if (resendError) {
         setError(resendError.message);
@@ -91,7 +102,7 @@ export default function AuthForm({ initialMode = "sign-in", initialNotice = "" }
       const result =
         mode === "sign-in"
           ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: confirmUrl("/dashboard") } });
+          : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: confirmUrl(next) } });
 
       if (result.error) {
         if (result.error.code === "email_not_confirmed") {
@@ -109,7 +120,7 @@ export default function AuthForm({ initialMode = "sign-in", initialNotice = "" }
         return;
       }
 
-      router.push("/dashboard");
+      router.push(next);
       router.refresh();
     } catch {
       setError("The sign-in service could not be reached. Check your connection and try again.");

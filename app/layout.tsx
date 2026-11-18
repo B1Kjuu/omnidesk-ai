@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { siteUrl } from "@/lib/siteUrl";
 import { cn } from "@/lib/utils";
 
 const atkinson = Atkinson_Hyperlegible_Next({
@@ -19,9 +20,16 @@ const atkinsonMono = Atkinson_Hyperlegible_Mono({
   adjustFontFallback: false,
 });
 
+const description =
+  "Customer support that answers only from a business's approved knowledge, quotes the source of every answer, and hands everything else to a person.";
+
 export const metadata: Metadata = {
-  title: "OmniDesk AI",
-  description: "Customer support that answers from approved knowledge, or routes the question to a person.",
+  metadataBase: new URL(siteUrl()),
+  title: { default: "OmniDesk AI: support answers with sources", template: "%s · OmniDesk AI" },
+  description,
+  applicationName: "OmniDesk AI",
+  openGraph: { type: "website", siteName: "OmniDesk AI", title: "OmniDesk AI: every answer leaves with its source", description, url: "/" },
+  twitter: { card: "summary_large_image", title: "OmniDesk AI: every answer leaves with its source", description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

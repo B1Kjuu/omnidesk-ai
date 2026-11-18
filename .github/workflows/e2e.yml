@@ -1,0 +1,35 @@
+name: E2E (production smoke test)
+
+# Browser tests of the live site. They never create data. Run it from the Actions tab after a deploy.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Site to test
+        default: https://omnidesk-ai-one.vercel.app
+      desk_handle:
+        description: An organization's chat handle, to also test the chat page and website widget (optional)
+        default: ""
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: "1"
+          BASE_URL: ${{ inputs.base_url }}
+          E2E_DESK_HANDLE: ${{ inputs.desk_handle }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

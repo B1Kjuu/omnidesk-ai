@@ -1,7 +1,9 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import CopyLinkButton from "@/components/dashboard/CopyLinkButton";
 import CreateOrganizationForm from "@/components/dashboard/CreateOrganizationForm";
 import NotificationEmailForm from "@/components/dashboard/NotificationEmailForm";
+import WidgetSettings from "@/components/dashboard/WidgetSettings";
 import { PageTitle } from "@/components/dashboard/SectionHeader";
 import Icon from "@/components/ui/Icon";
 import { publicOrigin } from "@/lib/publicOrigin";
@@ -9,11 +11,12 @@ import { getDesk } from "@/lib/dashboard/getDesk";
 import { createClient } from "@/lib/supabase/server";
 
 export const instant = false;
+export const metadata = { title: "Organizations" };
 
 /** Loaded separately from getDesk so the rest of the dashboard still works before the migration is applied. */
 async function getRecipients(organizationIds: string[]) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("organizations").select("id, notification_email").in("id", organizationIds);
+  const { data, error } = await supabase.from("organizations").select("*").in("id", organizationIds);
   if (error) return null;
   const effective = await Promise.all(
     organizationIds.map(async (id) => {
@@ -22,13 +25,18 @@ async function getRecipients(organizationIds: string[]) {
     }),
   );
   const effectiveById = new Map(effective);
-  return new Map(data.map((row) => [row.id, { configured: row.notification_email, effective: effectiveById.get(row.id) ?? null }]));
+  return new Map(
+    data.map((row) => [row.id, { configured: row.notification_email, effective: effectiveById.get(row.id) ?? null, widgetDomains: row.widget_domains ?? null }]),
+  );
 }
 
 export default async function OrganizationsPage() {
   const desk = await getDesk();
   const hasOrganization = desk.organizations.length > 0;
   const recipients = hasOrganization ? await getRecipients(desk.organizations.map((organization) => organization.id)) : null;
+  // The widget snippet must point at the public domain, not a preview or deployment URL.
+  const requestHost = (await headers()).get("host");
+  const origin = publicOrigin() ?? (requestHost ? `${requestHost.startsWith("localhost") ? "http" : "https"}://${requestHost}` : "");
 
   return (
     <>
@@ -54,7 +62,11 @@ export default async function OrganizationsPage() {
                   </Link>
                 </div>
               </div>
-              {recipients ? (
+              {!organization.canManage ? (
+                <p className="mt-4 border-t border-dashed border-rule-strong pt-4 text-sm text-ink-2">
+                  You are an agent here. Owners and admins manage escalation emails and the website widget.
+                </p>
+              ) : recipients ? (
                 <NotificationEmailForm
                   organizationId={organization.id}
                   configured={recipients.get(organization.id)?.configured ?? null}
@@ -65,6 +77,12 @@ export default async function OrganizationsPage() {
                   Escalation emails go to the organization creator. Apply the latest database migration to choose a different address.
                 </p>
               )}
+              {organization.canManage && <WidgetSettings
+                organizationId={organization.id}
+                handle={organization.chatPath.replace("/chat/", "")}
+                origin={origin}
+                domains={recipients?.get(organization.id)?.widgetDomains ?? null}
+              />}
             </li>
           ))}
         </ul>

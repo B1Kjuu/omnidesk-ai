@@ -1,33 +1,23 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import ChatForm from "@/components/chat/ChatForm";
-import { createAdminClient } from "@/lib/supabase/admin";
-
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const slugPattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+import { findChatOrganization } from "@/lib/chatOrganization";
 
 export const instant = false;
+
+export async function generateMetadata({ params }: PageProps<"/chat/[handle]">) {
+  const organization = await findChatOrganization((await params).handle);
+  return organization
+    ? { title: `${organization.name} help desk`, description: `Ask ${organization.name} a question. Answers come from their approved help articles, or from a person on the team.`, robots: { index: false } }
+    : { title: "Help desk not found" };
+}
 
 /** Accepts the short link (/chat/sunrise-outfitters) or the original ID link, so shared links never break. */
 export default async function CustomerChatPage({ params }: PageProps<"/chat/[handle]">) {
   await connection();
   const { handle } = await params;
-  const value = decodeURIComponent(handle).toLowerCase();
-  const column = uuidPattern.test(value) ? "id" : slugPattern.test(value) && value.length <= 40 ? "slug" : null;
-  if (!column) notFound();
-
-  const { data: organization, error } = await createAdminClient()
-    .from("organizations")
-    .select("id, name")
-    .eq(column, value)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Could not load chat organization: ${error.message}`);
-  }
-  if (!organization) {
-    notFound();
-  }
+  const organization = await findChatOrganization(handle);
+  if (!organization) notFound();
 
   return (
     <main className="flex flex-1 flex-col bg-platform">

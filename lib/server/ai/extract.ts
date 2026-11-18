@@ -23,7 +23,7 @@ export async function extractPdfText(file: ArrayBuffer): Promise<string> {
 }
 
 /** Private, loopback, link-local and metadata ranges a public URL must never resolve to (SSRF guard). */
-function isPrivateAddress(address: string) {
+export function isPrivateAddress(address: string): boolean {
   if (isIP(address) === 6) {
     const lower = address.toLowerCase();
     if (lower.startsWith("::ffff:")) return isPrivateAddress(lower.slice(7));

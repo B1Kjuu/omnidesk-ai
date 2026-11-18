@@ -1,6 +1,8 @@
 import UpdatePasswordForm from "@/components/auth/UpdatePasswordForm";
 import Wordmark from "@/components/ui/Wordmark";
 
+export const metadata = { title: "Choose a new password", robots: { index: false } };
+
 export default function UpdatePasswordPage() {
   return (
     <main className="flex flex-1 flex-col bg-platform">

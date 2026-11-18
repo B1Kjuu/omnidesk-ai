@@ -3,6 +3,7 @@ import TicketList from "@/components/dashboard/TicketList";
 import { getDesk, plural } from "@/lib/dashboard/getDesk";
 
 export const instant = false;
+export const metadata = { title: "Escalations" };
 
 export default async function EscalationsPage() {
   const desk = await getDesk();

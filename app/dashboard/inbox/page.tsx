@@ -3,6 +3,7 @@ import { PageTitle } from "@/components/dashboard/SectionHeader";
 import { getDesk } from "@/lib/dashboard/getDesk";
 
 export const instant = false;
+export const metadata = { title: "Inbox" };
 
 export default async function InboxPage() {
   const desk = await getDesk();

@@ -18,3 +18,6 @@ jobs:
       # Lint includes the Tailwind class rules, so the editor's "Problems" warnings fail here too.
       - run: npm run lint
       - run: npx tsc --noEmit
+      # Unit tests plus database tests: every migration applied to an in-memory Postgres, with row-level
+      # security enforced, proving one organization can never read or change another's data.
+      - run: npm test

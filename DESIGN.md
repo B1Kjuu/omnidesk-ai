@@ -17,7 +17,7 @@ colors:
   rule-strong: "#b9bec6"
   ink: "#15171a"
   ink-secondary: "#4a515b"
-  ink-tertiary: "#6b727c"
+  ink-tertiary: "#5f6670"
   board-black: "#15171a"
   board-raised: "#22252a"
   board-rule: "#33373e"

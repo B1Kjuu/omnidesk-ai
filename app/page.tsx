@@ -40,7 +40,13 @@ export default function Home() {
       <footer className="border-t border-rule">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-ink-2 sm:px-10">
           <Wordmark tone="onPaper" />
-          <p>A standalone portfolio project. Example board rows and organizations are illustrative.</p>
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="hover:text-ink">Terms</Link>
+            <a href="https://github.com/B1Kjuu/omnidesk-ai" target="_blank" rel="noopener noreferrer" className="hover:text-ink">GitHub</a>
+            <a href="https://github.com/B1Kjuu/omnidesk-ai/issues" target="_blank" rel="noopener noreferrer" className="hover:text-ink">Contact</a>
+          </nav>
+          <p className="w-full sm:w-auto">© 2026 B1Kjuu. A portfolio project; example board rows and organizations are illustrative.</p>
         </div>
       </footer>
     </main>

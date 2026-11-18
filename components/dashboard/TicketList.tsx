@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Icon from "@/components/ui/Icon";
 import LocalTime from "@/components/ui/LocalTime";
 import StatusTag from "@/components/ui/StatusTag";
 import { createClient } from "@/lib/supabase/browser";
 import { getOptions } from "@/lib/status";
+import type { ConversationMessage } from "./ConversationList";
+import ConversationThread from "./ConversationThread";
+import ReplyForm from "./ReplyForm";
 import { EmptyState } from "./SectionHeader";
 
 export type TicketItem = {
@@ -20,6 +22,8 @@ export type TicketItem = {
   customer_name: string;
   customer_email: string | null;
   question: string | null;
+  conversation_id: string;
+  messages: ConversationMessage[];
 };
 
 const categoryLabel: Record<string, string> = { knowledge_gap: "No approved answer" };
@@ -106,19 +110,18 @@ export default function TicketList({ tickets }: { tickets: TicketItem[] }) {
                       {getOptions("ticket").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
-                  {ticket.customer_email ? (
-                    <a
-                      className="btn btn-secondary py-1.5 text-sm no-underline"
-                      href={`mailto:${ticket.customer_email}?subject=${encodeURIComponent("Re: your question")}`}
-                    >
-                      Reply by email
-                      <Icon name="external" className="size-3.5" />
-                    </a>
-                  ) : (
-                    <p className="pb-1.5 text-sm text-ink-2">No email to reply to</p>
-                  )}
                 </div>
               </div>
+
+              <details className="group mt-3" open={ticket.status === "open"}>
+                <summary className="cursor-pointer text-sm font-bold text-ink-2 hover:text-ink">
+                  Conversation ({ticket.messages.length} {ticket.messages.length === 1 ? "message" : "messages"}) and reply
+                </summary>
+                <div className="mt-3 border-t border-dashed border-rule-strong pt-4">
+                  <ConversationThread messages={ticket.messages} />
+                  <ReplyForm conversationId={ticket.conversation_id} customerName={ticket.customer_name} customerEmail={ticket.customer_email} />
+                </div>
+              </details>
             </li>
           );
         })}

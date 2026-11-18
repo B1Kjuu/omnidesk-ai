@@ -17,8 +17,11 @@ const items: Array<{ href: string; label: string; icon: IconName; count?: (count
   { href: "/dashboard/inbox", label: "Inbox", icon: "inbox", count: (c) => c.inbox },
   { href: "/dashboard/escalations", label: "Escalations", icon: "person", count: (c) => c.escalations, alert: (c) => c.escalations > 0 },
   { href: "/dashboard/knowledge", label: "Knowledge", icon: "book", count: (c) => c.knowledge },
+  { href: "/dashboard/insights", label: "Insights", icon: "chart" },
   { href: "/dashboard/automation", label: "Automation", icon: "bolt", count: (c) => c.automationFailures || undefined, alert: (c) => c.automationFailures > 0 },
   { href: "/dashboard/organizations", label: "Organizations", icon: "building", count: (c) => c.organizations },
+  { href: "/dashboard/team", label: "Team", icon: "person" },
+  { href: "/dashboard/activity", label: "Activity", icon: "flag" },
 ];
 
 export default function DeskNav({ counts }: { counts: NavCounts | null }) {

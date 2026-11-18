@@ -47,6 +47,18 @@ Last run 2026-11-17. Knowledge base: Harbor & Pine Outfitters (fictional), 5 sou
 
 The metric that matters most is **wrong answers**: a support desk that confidently answers from the wrong policy is worse than one that asks a person.
 
+## Add it to any website
+
+```html
+<script src="https://omnidesk-ai-one.vercel.app/widget.js" data-desk="your-org" async></script>
+```
+
+A chat button appears in the corner and opens the desk in a panel. Optional attributes: `data-color="#0f62fe"`, `data-position="left"`, `data-label="Ask us"`. `window.OmniDesk.open()` opens it from your own buttons. The snippet, with these options filled in, is under **Dashboard → Organizations → Website widget**.
+
+- The chat runs in an iframe from the OmniDesk domain, and the launcher's styles live in a shadow root, so the host site's CSS and the widget cannot break each other.
+- Each organization can list the websites allowed to show its chat, enforced by the browser through a `Content-Security-Policy: frame-ancestors` header. Every other page, including the dashboard, refuses to be framed at all.
+- The iframe loads on first open, so the widget costs the host page one small script until a visitor uses it.
+
 ## What is built
 
 | Area | Details |
@@ -55,11 +67,16 @@ The metric that matters most is **wrong answers**: a support desk that confident
 | **Knowledge ingestion** | FAQ (split per question), text (paragraph/sentence chunking with overlap), PDF upload, and public web pages, all embedded on the server. Editing a source re-indexes it. |
 | **Grounded answers** | Semantic retrieval, a similarity threshold, structured-output Gemini judging, and quoted citations. Keyword ranking is the fallback if embeddings are unavailable. |
 | **Escalation** | A ticket and conversation flag in the same request, and an idempotent workflow event delivered to an n8n webhook that emails the organization's chosen recipient. The email layout is rendered and versioned in this repo. |
-| **Staff dashboard** | Overview, inbox, escalations with priority and status, knowledge management, automation log, and organizations. It updates live through Supabase Realtime. |
+| **Staff replies** | Staff answer from the dashboard; the reply appears in the customer’s chat and is emailed if they left an address. Customers keep one thread across visits through a per-conversation token (only its hash is stored), and follow-ups never open duplicate tickets. |
+| **Staff dashboard** | Overview, inbox, escalations with priority, status, and the full thread, knowledge management, automation log, and organizations. It updates live through Supabase Realtime. |
 | **Abuse protection** | Cloudflare Turnstile on the public chat, Postgres-backed rate limits per visitor, per organization, and per outgoing email, and an SSRF guard on URL imports. |
 | **Accounts** | Supabase Auth with email confirmation, password reset, and branded email templates. |
+| **Teams** | Invite teammates as admins or agents. Invitation links are single use, only work for the invited email, and expire in 7 days. Role changes go through database functions that always keep at least one owner. |
+| **Activity log** | Postgres triggers record knowledge edits, settings changes, membership changes, ticket updates, and staff replies with the acting user, so no code path can skip the log. |
 | **Observability** | Sentry for errors, traces, and masked session replay, tunnelled through the app so ad blockers don't drop reports. Vercel Analytics for traffic. |
-| **Quality gates** | ESLint (including Tailwind class rules) and TypeScript on every push via GitHub Actions, plus the retrieval evaluation. |
+| **Insights** | Answered vs. handed-to-staff rates per day, median time to the first staff reply, helpful ratings, which sources answer the most questions, and **knowledge gaps**: unanswered questions grouped by meaning (embedding similarity), each one-click away from an FAQ that Gemini drafts only from what staff already replied. |
+| **Tests** | 79 unit and database tests (`npm test`): chunking, the answer decision, the SSRF guard, and every migration applied to an in-memory Postgres with row-level security enforced, proving one organization can never read or change another's data. Plus Playwright browser tests of the public site and the website widget (`npm run test:e2e`). |
+| **Quality gates** | ESLint (including Tailwind class rules), TypeScript, and the test suite on every push via GitHub Actions; a manual workflow runs the browser tests against production; the retrieval evaluation runs on demand. |
 
 ## Stack
 
@@ -91,6 +108,8 @@ Open http://localhost:3000, create an account, create an organization, add an FA
 | `npm run eval` | Retrieval and grounding evaluation (needs `GEMINI_API_KEY`); writes `evals/RESULTS.md` |
 | `npm run eval:readme` | Copies the latest evaluation scores into this README |
 | `npm run reindex` | Embeds knowledge that has no embeddings yet (run once after the retrieval migration) |
+| `npm test` | Unit tests and database tests (row-level security, teams, insights) on an in-memory Postgres |
+| `npm run test:e2e` | Playwright browser tests; set `BASE_URL` to test a deployed site, `E2E_DESK_HANDLE` to include the chat page and widget |
 
 ### Environment variables
 
@@ -117,10 +136,14 @@ evals/                 evaluation knowledge base, test questions, latest results
 
 - [x] **Milestone 1: launch safely.** Bot check, rate limits, error monitoring, password reset, email confirmation, configurable escalation emails.
 - [x] **Milestone 2: real retrieval.** Embeddings and pgvector, chunking, PDF and web page import, quoted citations, similarity threshold, evaluation set.
-- [ ] **Milestone 3: staff replies.** Reply from the dashboard, customers see replies in their chat, follow-up messages, ask for an email when a question escalates.
-- [ ] **Milestone 4: embeddable widget.** A script tag that adds the chat to any website.
-- [ ] **Milestone 5: teams.** Invitations, roles in the UI, audit log.
-- [ ] **Milestone 6: insights.** Answer vs. escalation rates, knowledge-gap suggestions from escalated questions, answer ratings.
+- [x] **Milestone 3: staff replies.** Reply from the dashboard, customers see replies in their chat (and by email), follow-up messages in one thread, ask for an email when a question escalates.
+- [x] **Milestone 4: embeddable widget.** One script tag adds a chat button to any website, with brand colour, position, and an allowed-websites list.
+- [x] **Milestone 5: teams.** Email invitations (single use, email-bound, 7-day expiry), owner/admin/agent roles enforced in the database and reflected in the UI, and a trigger-written activity log.
+- [x] **Milestone 6: insights.** Answer vs. escalation rates, staff response time, answer ratings, and knowledge gaps grouped by meaning that turn into FAQs drafted from staff replies.
+- [x] **Milestone 7: quality.** Unit tests, row-level-security tests on a real Postgres, Playwright browser tests, and CI.
+- [x] **Launch checklist.** Privacy policy and terms, social preview image, favicon, sitemap and robots.txt, per-page titles and descriptions, security headers (HSTS and more), WCAG AA colour contrast, no horizontal scroll on phones, no broken links.
+
+Possible next steps: AI-drafted staff replies, an email inbox channel, ticket assignment with response-time targets, and plans and usage limits.
 
 ## Security notes
 

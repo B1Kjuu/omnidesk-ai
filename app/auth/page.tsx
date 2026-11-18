@@ -2,6 +2,7 @@ import AuthForm from "@/components/auth/AuthForm";
 import Wordmark from "@/components/ui/Wordmark";
 
 export const instant = false;
+export const metadata = { title: "Sign in" };
 
 const notices: Record<string, string> = {
   "session-expired": "Your session expired. Sign in again to return to your desk.",
@@ -9,11 +10,13 @@ const notices: Record<string, string> = {
 };
 
 type AuthPageProps = {
-  searchParams: Promise<{ reason?: string; mode?: string }>;
+  searchParams: Promise<{ reason?: string; mode?: string; next?: string; email?: string }>;
 };
 
 export default async function AuthPage({ searchParams }: AuthPageProps) {
-  const { reason, mode } = await searchParams;
+  const { reason, mode, next, email } = await searchParams;
+  // Only same-site paths, so a crafted link cannot send people elsewhere after signing in.
+  const safeNext = next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/dashboard";
 
   return (
     <main className="flex flex-1 flex-col bg-platform">
@@ -28,6 +31,8 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
           <AuthForm
             initialMode={mode === "sign-up" || mode === "reset" ? mode : "sign-in"}
             initialNotice={notices[reason ?? ""] ?? ""}
+            next={safeNext}
+            initialEmail={typeof email === "string" ? email.slice(0, 320) : ""}
           />
           <p className="mt-6 text-center text-sm/relaxed text-ink-2">
             Customers never need an account. They ask questions on your desk&apos;s public chat page.

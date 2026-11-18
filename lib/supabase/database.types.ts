@@ -49,16 +49,30 @@ isOneToOne: false
       referencedColumns: ["organization_id","id"]
     }
                   ]
-                },"conversations": {
+                },"audit_events": {
                   Row: {
-                    "assigned_to": string | null,"created_at": string,"customer_id": string,"id": string,"organization_id": string,"status": string,"updated_at": string
+                    "action": string,"actor_id": string | null,"created_at": string,"details": NonNullable<Json>,"id": number,"organization_id": string,"subject": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "assigned_to"?: string | null,"created_at"?: string,"customer_id": string,"id"?: string,"organization_id": string,"status"?: string,"updated_at"?: string
+                    "action": string,"actor_id"?: string | null,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: never,"organization_id": string,"subject"?: string | null
                   }
                   Update: {
-                    "assigned_to"?: string | null,"created_at"?: string,"customer_id"?: string,"id"?: string,"organization_id"?: string,"status"?: string,"updated_at"?: string
+                    "action"?: string,"actor_id"?: string | null,"created_at"?: string,"details"?: NonNullable<Json>,"id"?: never,"organization_id"?: string,"subject"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"conversations": {
+                  Row: {
+                    "assigned_to": string | null,"created_at": string,"customer_id": string,"customer_token_hash": string | null,"id": string,"last_message_at": string,"organization_id": string,"status": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assigned_to"?: string | null,"created_at"?: string,"customer_id": string,"customer_token_hash"?: string | null,"id"?: string,"last_message_at"?: string,"organization_id": string,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "assigned_to"?: string | null,"created_at"?: string,"customer_id"?: string,"customer_token_hash"?: string | null,"id"?: string,"last_message_at"?: string,"organization_id"?: string,"status"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -143,14 +157,14 @@ isOneToOne: false
                   ]
                 },"messages": {
                   Row: {
-                    "content": string,"conversation_id": string,"created_at": string,"id": string,"organization_id": string,"sender_type": string,"source_references": NonNullable<Json>
+                    "author_id": string | null,"content": string,"conversation_id": string,"created_at": string,"id": string,"organization_id": string,"question_embedding": string | null,"sender_type": string,"source_references": NonNullable<Json>
                   }
                   ComputedFields: never
                   Insert: {
-                    "content": string,"conversation_id": string,"created_at"?: string,"id"?: string,"organization_id": string,"sender_type": string,"source_references"?: NonNullable<Json>
+                    "author_id"?: string | null,"content": string,"conversation_id": string,"created_at"?: string,"id"?: string,"organization_id": string,"question_embedding"?: string | null,"sender_type": string,"source_references"?: NonNullable<Json>
                   }
                   Update: {
-                    "content"?: string,"conversation_id"?: string,"created_at"?: string,"id"?: string,"organization_id"?: string,"sender_type"?: string,"source_references"?: NonNullable<Json>
+                    "author_id"?: string | null,"content"?: string,"conversation_id"?: string,"created_at"?: string,"id"?: string,"organization_id"?: string,"question_embedding"?: string | null,"sender_type"?: string,"source_references"?: NonNullable<Json>
                   }
                   Relationships: [
                     {
@@ -187,16 +201,30 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"organizations": {
+                },"organization_invitations": {
                   Row: {
-                    "created_at": string,"created_by": string,"id": string,"name": string,"notification_email": string | null,"slug": string
+                    "accepted_at": string | null,"accepted_by": string | null,"created_at": string,"email": string,"expires_at": string,"id": string,"invited_by": string,"organization_id": string,"role": string,"token_hash": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"created_by": string,"id"?: string,"name": string,"notification_email"?: string | null,"slug"?: string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"created_at"?: string,"email": string,"expires_at"?: string,"id"?: string,"invited_by": string,"organization_id": string,"role": string,"token_hash": string
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string,"notification_email"?: string | null,"slug"?: string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"created_at"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"invited_by"?: string,"organization_id"?: string,"role"?: string,"token_hash"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"organizations": {
+                  Row: {
+                    "created_at": string,"created_by": string,"id": string,"name": string,"notification_email": string | null,"slug": string,"widget_domains": string[]
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by": string,"id"?: string,"name": string,"notification_email"?: string | null,"slug"?: string,"widget_domains"?: string[]
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"id"?: string,"name"?: string,"notification_email"?: string | null,"slug"?: string,"widget_domains"?: string[]
                   }
                   Relationships: [
 
@@ -267,6 +295,36 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
+            "get_widget_domains":
+{ Args: { "handle": string }; Returns: string[] | null
+                           },
+            "get_invitation":
+{ Args: { "invitation_token_hash": string }; Returns: { "accepted": boolean,"email": string,"expired": boolean,"organization_name": string,"role": string }[]
+                           },
+            "accept_invitation":
+{ Args: { "invitation_token_hash": string }; Returns: string
+                           },
+            "list_organization_members":
+{ Args: { "target_organization_id": string }; Returns: { "email": string,"joined_at": string,"role": string,"user_id": string }[]
+                           },
+            "set_member_role":
+{ Args: { "new_role": string,"target_organization_id": string,"target_user_id": string }; Returns: undefined
+                           },
+            "remove_member":
+{ Args: { "target_organization_id": string,"target_user_id": string }; Returns: undefined
+                           },
+            "list_audit_events":
+{ Args: { "max_rows"?: number,"target_organization_id": string }; Returns: { "action": string,"actor_email": string | null,"created_at": string,"details": Json,"id": number,"subject": string | null }[]
+                           },
+            "get_desk_insights":
+{ Args: { "days"?: number,"target_organization_id": string }; Returns: Json
+                           },
+            "list_unanswered_questions":
+{ Args: { "days"?: number,"max_rows"?: number,"target_organization_id": string }; Returns: { "content": string,"conversation_id": string,"created_at": string,"embedding": string | null,"message_id": string,"staff_reply": string | null }[]
+                           },
+            "list_unhelpful_answers":
+{ Args: { "max_rows"?: number,"target_organization_id": string }; Returns: { "answer": string,"created_at": string,"message_id": string,"question": string | null,"source_name": string | null }[]
+                           },
             "match_knowledge_chunks":
 { Args: { "match_count"?: number,"query_embedding": string,"target_organization_id": string }; Returns: {
               "content": string,"id": string,"similarity": number,"source_id": string

@@ -30,7 +30,7 @@ export const getDesk = cache(async () => {
     redirect("/auth?reason=session-expired");
   }
 
-  const [organizationsResult, conversationsResult, ticketsResult, workflowEventsResult, knowledgeSourcesResult] = await Promise.all([
+  const [organizationsResult, conversationsResult, ticketsResult, workflowEventsResult, knowledgeSourcesResult, membershipsResult] = await Promise.all([
     // "*" rather than naming slug, so the dashboard keeps working before the slug migration is applied.
     supabase.from("organizations").select("*").order("created_at", { ascending: true }),
     supabase
@@ -47,6 +47,7 @@ export const getDesk = cache(async () => {
       // "*" so the page still loads before the retrieval migration adds content/source_url/last_error/chunk_count.
       .select("*, organizations(name)")
       .order("created_at", { ascending: false }),
+    supabase.from("organization_members").select("organization_id, role").eq("user_id", claims.sub),
   ]);
 
   for (const [label, result] of [
@@ -55,15 +56,20 @@ export const getDesk = cache(async () => {
     ["tickets", ticketsResult],
     ["workflow events", workflowEventsResult],
     ["knowledge sources", knowledgeSourcesResult],
+    ["memberships", membershipsResult],
   ] as const) {
     if (result.error) {
       throw new Error(`Could not load ${label}: ${result.error.message}`);
     }
   }
 
+  const roles = new Map((membershipsResult.data ?? []).map((membership) => [membership.organization_id, membership.role]));
   const organizations = (organizationsResult.data ?? []).map((organization) => ({
     id: organization.id,
     name: organization.name,
+    /** The signed-in user's role here. Agents answer customers; owners and admins also manage knowledge and settings. */
+    role: roles.get(organization.id) ?? "agent",
+    canManage: roles.get(organization.id) === "owner" || roles.get(organization.id) === "admin",
     // Short public link, e.g. /chat/sunrise-outfitters; falls back to the ID link.
     chatPath: `/chat/${organization.slug || organization.id}`,
   }));
@@ -113,6 +119,8 @@ export const getDesk = cache(async () => {
     customer_name: ticket.conversations?.customers?.name ?? "Unnamed customer",
     customer_email: ticket.conversations?.customers?.email ?? null,
     question: firstQuestionByConversation.get(ticket.conversation_id) ?? null,
+    conversation_id: ticket.conversation_id,
+    messages: conversationItems.find((conversation) => conversation.id === ticket.conversation_id)?.messages ?? [],
   }));
 
   const sourceItems = knowledgeSources.map((source) => ({
@@ -134,6 +142,8 @@ export const getDesk = cache(async () => {
   return {
     email: typeof claims.email === "string" ? claims.email : "",
     organizations,
+    /** Organizations where the user may manage knowledge, settings, and the team. */
+    managedOrganizations: organizations.filter((organization) => organization.canManage),
     multipleOrganizations,
     conversations: conversationItems,
     tickets: ticketItems,

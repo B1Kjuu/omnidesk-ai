@@ -8,18 +8,27 @@ import { CONTEXT_PASSAGES, keywordCandidates, type Candidate } from "./grounding
 /**
  * Finds the passages most likely to answer a question, for one organization only.
  * Semantic search (pgvector) first; if embedding fails or nothing is indexed yet, keyword ranking.
+ * Also returns the question's embedding (pgvector literal) so it can be stored for grouping knowledge gaps.
  */
-export async function retrieveCandidates(admin: SupabaseClient<Database>, organizationId: string, question: string): Promise<Candidate[]> {
+export async function retrieveCandidates(
+  admin: SupabaseClient<Database>,
+  organizationId: string,
+  question: string,
+): Promise<{ candidates: Candidate[]; questionEmbedding: string | null }> {
+  let questionEmbedding: string | null = null;
   try {
-    const embedding = await embedQuery(question);
+    questionEmbedding = toVectorLiteral(await embedQuery(question));
     const { data, error } = await admin.rpc("match_knowledge_chunks", {
       target_organization_id: organizationId,
-      query_embedding: toVectorLiteral(embedding),
+      query_embedding: questionEmbedding,
       match_count: CONTEXT_PASSAGES,
     });
     if (error) throw error;
     if (data.length > 0) {
-      return data.map((row) => ({ id: row.id, sourceId: row.source_id, content: row.content, score: row.similarity, method: "semantic" as const }));
+      return {
+        candidates: data.map((row) => ({ id: row.id, sourceId: row.source_id, content: row.content, score: row.similarity, method: "semantic" as const })),
+        questionEmbedding,
+      };
     }
   } catch (error) {
     console.error(`Semantic retrieval unavailable, using keyword fallback: ${describeError(error)}`);
@@ -31,5 +40,5 @@ export async function retrieveCandidates(admin: SupabaseClient<Database>, organi
     .eq("organization_id", organizationId)
     .eq("knowledge_sources.status", "ready");
   if (error) throw new Error(`Could not retrieve knowledge chunks: ${describeError(error)}`);
-  return keywordCandidates(chunks, question);
+  return { candidates: keywordCandidates(chunks, question), questionEmbedding };
 }

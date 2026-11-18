@@ -32,7 +32,16 @@ async function patchSource(id: string, body: { name?: string; content?: string; 
   }
 }
 
-export default function KnowledgeSourceList({ sources, showOrganization }: { sources: KnowledgeSource[]; showOrganization: boolean }) {
+export default function KnowledgeSourceList({
+  sources,
+  showOrganization,
+  manageableOrganizationIds,
+}: {
+  sources: KnowledgeSource[];
+  showOrganization: boolean;
+  /** Organizations where the user is an owner or admin; agents get a read-only list. */
+  manageableOrganizationIds: string[];
+}) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -142,6 +151,7 @@ export default function KnowledgeSourceList({ sources, showOrganization }: { sou
                   <p className="alert-error mt-2 text-sm" role="status">{source.last_error}</p>
                 )}
                 <p className="mt-2 line-clamp-2 max-w-[75ch] text-[0.9375rem]/relaxed text-ink-2">{source.content || "No content"}</p>
+                {manageableOrganizationIds.includes(source.organization_id) && (
                 <div className="mt-2 -ml-2 flex flex-wrap gap-1">
                   {source.status === "failed" && (
                     <button className="btn btn-secondary py-1.5 text-sm" type="button" disabled={isBusy(source.id)} onClick={() => run(source, "retry", {})}>
@@ -160,6 +170,7 @@ export default function KnowledgeSourceList({ sources, showOrganization }: { sou
                     {isBusy(source.id, "delete") ? "Deleting" : "Delete"}
                   </button>
                 </div>
+                )}
               </>
             )}
           </li>

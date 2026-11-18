@@ -11,6 +11,7 @@ const paths = {
   external: "M14 5h5v5M19 5l-8 8M17 14v5H5V7h5",
   copy: "M8 8h11v11H8zM5 16V5h11",
   overview: "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
+  chart: "M4 20h16M7 16v-4M12 16V7M17 16v-7",
 } as const;
 
 export type IconName = keyof typeof paths;

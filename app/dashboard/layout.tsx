@@ -6,6 +6,8 @@ import { getDesk } from "@/lib/dashboard/getDesk";
 import SignOutButton from "./SignOutButton";
 
 export const instant = false;
+// Private workspace: never in search results.
+export const metadata = { robots: { index: false, follow: false } };
 
 async function Account() {
   const desk = await getDesk();

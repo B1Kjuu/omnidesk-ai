@@ -11,7 +11,10 @@
     "check": "eslint && tsc --noEmit",
     "eval": "tsx scripts/eval.mts",
     "reindex": "tsx scripts/reindex.mts",
-    "eval:readme": "tsx scripts/readme-eval.mts"
+    "eval:readme": "tsx scripts/readme-eval.mts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
@@ -33,6 +36,8 @@
     "unpdf": "^2.2.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.15",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -42,6 +47,7 @@
     "eslint-plugin-better-tailwindcss": "^4.11.0",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }

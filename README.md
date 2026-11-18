@@ -4,7 +4,13 @@
 
 **Live demo:** https://omnidesk-ai-one.vercel.app
 
-OmniDesk is a multi-tenant support desk. A business adds its FAQs, policies, PDFs, or web pages and shares a chat link with customers. Each question is answered from that approved knowledge, with the exact passage quoted, or, when nothing approved answers it, turned into a ticket and an email to the team. It never guesses.
+OmniDesk is a multi-tenant support desk. A business adds its FAQs, policies, PDFs, or web pages, then shares a chat link or adds a chat button to its website with one script tag. Each question is answered from that approved knowledge, with the exact passage quoted. When nothing approved answers it, the question becomes a ticket and an email to the team, and the staff reply reaches the customer in the same chat. It never guesses.
+
+**In one minute:**
+
+- **Customers** ask without an account, get answers that cite their source, in their own language, and see staff replies in the same conversation.
+- **Staff** work from a live dashboard: inbox, escalations with the full thread and a reply box, and email alerts.
+- **Admins** manage knowledge (FAQ, text, PDF, web page), the team (admins and agents), the website widget, and see **Insights**: how much the AI answered, how fast staff replied, and which unanswered questions to turn into FAQs next.
 
 <!-- Screenshot suggestion: docs/screenshots/chat.png (a grounded answer with its quoted source) -->
 
@@ -20,12 +26,16 @@ flowchart LR
   T -- yes --> L{Gemini: does one<br/>passage answer it?}
   L -- yes --> A[Answer + quoted source]
   L -- no --> ESC[Ticket + staff email<br/>via n8n]
+  ESC --> S[Staff reply<br/>in chat + by email]
+  S --> K[Knowledge gap in Insights<br/>FAQ drafted from the reply]
+  K -. next time answered instantly .-> R
 ```
 
 1. **Retrieve by meaning.** The question is embedded and matched against the organization's passages with pgvector. "When do I get my money back?" finds the refund policy even though they share no words.
 2. **Threshold.** If no passage is close enough, the question escalates without spending a model call.
 3. **Judge, don't generate.** Gemini sees the top passages and must return structured JSON: whether one of them actually answers the question, the answer, and which passage it used. Sharing a topic is not enough.
 4. **Cite or escalate.** Answers show the quoted passage they came from. Everything else opens a ticket, flags the conversation, and emails the organization's chosen contact.
+5. **Close the loop.** Staff reply from the dashboard; the customer sees it in their chat and by email. Insights groups unanswered questions by meaning, and one click turns a group into an FAQ drafted only from what staff already replied.
 
 ## Measured, not assumed
 
@@ -83,7 +93,8 @@ A chat button appears in the corner and opens the desk in a panel. Optional attr
 - **App:** Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS 4, GSAP, shadcn/ui
 - **Data:** Supabase (Postgres, pgvector, Auth, Realtime, row-level security)
 - **AI:** Google Gemini: `gemini-embedding-2` for retrieval, `gemini-3.1-flash-lite` for grounded answers (configurable with `GEMINI_MODEL`)
-- **Automation:** n8n (escalation emails)
+- **Automation:** n8n (escalation, staff-reply, and invitation emails, all rendered in this repo)
+- **Testing:** Vitest, PGlite (in-memory Postgres with pgvector), Playwright
 - **Platform:** Vercel (Sydney region, next to the database), Cloudflare Turnstile, Sentry
 
 ## Run it locally
@@ -119,17 +130,29 @@ Open http://localhost:3000, create an account, create an organization, add an FA
 
 ```
 app/
-  api/chat/            public chat endpoint: bot check, rate limits, retrieval, answer or escalation
-  api/knowledge/       add, edit, and re-index knowledge sources
-  chat/[handle]/       public customer chat page (/chat/your-org-name)
-  dashboard/           staff workspace
-  auth/                sign in, sign up, confirmation, password reset
-lib/server/ai/         chunking, embeddings, retrieval, grounding (shared with the eval)
-lib/server/            rate limiting, Turnstile, URL/PDF extraction, error formatting
-lib/email/             escalation email template
-supabase/migrations/   schema, row-level security policies, database functions
-supabase/templates/    branded auth emails
-evals/                 evaluation knowledge base, test questions, latest results
+  api/chat/                 public chat: bot check, rate limits, retrieval, answer or escalation
+  api/chat/thread|contact|feedback/   a returning customer's thread, email, and answer ratings
+  api/conversations/[id]/reply/       staff replies (saved with the staff member's session, then emailed)
+  api/knowledge/            add, edit, and re-index knowledge sources (FAQ, text, PDF, web page)
+  api/team/                 invitations and accepting them
+  api/insights/draft-faq/   FAQ drafts from staff replies
+  chat/[handle]/            public customer chat page (/chat/your-org-name)
+  embed/[handle]/           the chat inside the website widget
+  dashboard/                overview, inbox, escalations, knowledge, insights, automation,
+                            organizations, team, activity
+  invite/[token]/           invitation landing page
+  auth/                     sign in, sign up, confirmation, password reset
+  privacy/, terms/          legal pages
+public/widget.js            the embeddable chat button (no dependencies, shadow DOM)
+lib/server/ai/              chunking, embeddings, retrieval, grounding (shared with the eval)
+lib/server/insights/        grouping unanswered questions into knowledge gaps
+lib/server/                 rate limits, Turnstile, URL/PDF extraction, tokens, workflow emails
+lib/email/                  escalation, reply, and invitation email templates
+supabase/migrations/        schema, row-level security, database functions, audit triggers
+supabase/templates/         branded auth emails
+tests/unit/, tests/db/      Vitest unit tests and database tests (row-level security on PGlite)
+e2e/                        Playwright browser tests
+evals/                      evaluation knowledge base, test questions, latest results
 ```
 
 ## Roadmap
@@ -150,6 +173,8 @@ Possible next steps: AI-drafted staff replies, an email inbox channel, ticket as
 - The service-role key, Gemini key, and webhook URL exist only on the server. The browser talks to Supabase with the public anon key, so row-level security governs everything it can read or write.
 - Public endpoints verify a single-use Turnstile token (action and hostname checked) before any database write.
 - Retrieval, rate limiting, and recipient lookup are `security definer` functions callable only by the service role.
+- Customer conversations and team invitations use random tokens; only their SHA-256 hashes are stored.
+- Security headers on every response (HSTS, nosniff, referrer and permissions policies); only the widget's embed page can be framed, and only by each organization's allowed websites.
 
 ---
 

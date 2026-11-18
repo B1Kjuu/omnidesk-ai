@@ -14,10 +14,13 @@ export default function Closing() {
       const mm = gsap.matchMedia();
       mm.add(MOTION_OK, () => {
         const split = SplitText.create(".js-close-title", { type: "words", mask: "words" });
-        const tl = gsap.timeline({ scrollTrigger: { trigger: root.current, start: "top 65%", once: true } });
+        // "top 85%": the last section starts its reveal as soon as it enters, which short phone screens always reach.
+        const tl = gsap.timeline({ scrollTrigger: { trigger: root.current, start: "top 85%", once: true } });
         tl.from(split.words, { yPercent: 110, duration: 0.8, stagger: 0.08, ease: "power4.out" })
           .from(".js-close-copy", { y: 16, autoAlpha: 0, duration: 0.5 }, "-=0.4")
-          .from(".js-close-cta", { y: 16, autoAlpha: 0, duration: 0.5, stagger: 0.08 }, "-=0.3");
+          // Movement only, never opacity: the page's main call to action must stay visible even if this never plays.
+          // (In phone testing, an opacity reveal left both buttons invisible.)
+          .from(".js-close-cta", { y: 16, duration: 0.5, stagger: 0.08, clearProps: "transform" }, "-=0.3");
         return () => split.revert();
       });
     },

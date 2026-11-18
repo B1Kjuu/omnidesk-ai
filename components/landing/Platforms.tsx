@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { gsap, MOTION_OK, useGSAP } from "@/lib/gsap";
+import { attachTilt, gsap, MOTION_OK, TILT_OK, useGSAP } from "@/lib/gsap";
 
 const platforms = [
   { number: 1, name: "Sunrise Outfitters", knowledge: ["Refund FAQ", "Sizing guide", "Shipping policy"] },
@@ -24,13 +24,19 @@ export default function Platforms() {
       const mm = gsap.matchMedia();
       mm.add(MOTION_OK, () => {
         const tl = gsap.timeline({ scrollTrigger: { trigger: ".js-platforms", start: "top 70%", once: true } });
-        tl.from(".js-sign", { rotationX: -90, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.6, stagger: 0.12, ease: "power3.out" })
+        tl.from(".js-sign", { rotationX: -90, transformPerspective: 800, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.6, stagger: 0.12, ease: "power3.out" })
           .from(".js-fence", { scaleY: 0, transformOrigin: "50% 0%", duration: 0.5, stagger: 0.1, ease: "power2.out" }, "-=0.3")
           .from(".js-chip", { y: 10, autoAlpha: 0, duration: 0.3, stagger: 0.04 }, "-=0.2")
           .from(".js-asker", { scale: 0.6, autoAlpha: 0, duration: 0.35, ease: "back.out(2)" })
           .to(".js-asker", { x: 28, duration: 0.18, ease: "power2.in" })
           .to(".js-asker", { x: 0, duration: 0.5, ease: "elastic.out(1, 0.4)" })
           .from(".js-blocked", { scale: 0.5, autoAlpha: 0, duration: 0.3, ease: "back.out(2.5)" }, "<");
+      });
+
+      // Each platform is a raised card that leans toward the pointer on its own.
+      mm.add(TILT_OK, () => {
+        const cleanups = gsap.utils.toArray<HTMLElement>(".js-platform").map((card) => attachTilt(card, { maxX: 4, maxY: 5, perspective: 1200 }));
+        return () => cleanups.forEach((cleanup) => cleanup());
       });
     },
     { scope: root },
@@ -49,11 +55,12 @@ export default function Platforms() {
           </p>
         </div>
 
-        <div className="js-platforms mt-16 flex flex-col gap-6 perspective-distant md:flex-row md:gap-0">
+        <div className="js-platforms mt-16 flex flex-col gap-6 md:flex-row md:gap-0">
           {platforms.map((platform, index) => (
             <div key={platform.number} className="contents">
               {index > 0 && <Fence />}
-              <div className="flex-1 md:px-6 md:first:pl-0 md:last:pr-0">
+              <div className="js-platform relative flex-1 rounded-sm transition-shadow duration-300 hover:shadow-[0_40px_70px_-35px_rgba(0,0,0,0.9)] md:mx-3 md:p-4 md:first:ml-0 md:last:mr-0">
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-sm bg-[radial-gradient(360px_circle_at_var(--gx,50%)_var(--gy,0%),rgba(255,255,255,0.06),transparent_50%)]" />
                 <div className="js-sign flex items-center gap-4">
                   <span className="grid size-16 shrink-0 place-items-center rounded-xs bg-paper font-mono text-4xl font-bold text-ink">{platform.number}</span>
                   <div>

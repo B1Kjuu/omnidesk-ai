@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Icon from "@/components/ui/Icon";
 import { askDesk, formatClock } from "@/lib/askDesk";
-import { gsap, MOTION_OK, SplitText, useGSAP } from "@/lib/gsap";
+import { attachTilt, gsap, MOTION_OK, SplitText, TILT_OK, useGSAP } from "@/lib/gsap";
 import { useTurnstile } from "@/lib/useTurnstile";
 import { boardToneClasses, getStatus } from "@/lib/status";
 import SplitFlap from "./SplitFlap";
@@ -60,7 +60,8 @@ function RowStatus({ state, hangs, delay }: { state: RowState; hangs: boolean; d
   return (
     <span
       className={`flex items-center gap-2 text-sm font-bold ${boardToneClasses[status.tone]} ${
-        state === "staff" ? (hangs ? "-mr-4 px-3 py-1.5 sm:-mr-10 sm:pr-10" : "px-3 py-1.5") : ""
+        // Every staff tag sits fully inside the board; the old margin "hang" was clipped by the section edge.
+        state === "staff" ? `px-3 py-1.5 ${hangs ? "shadow-[0_0_0_3px_rgba(255,210,63,0.25)]" : ""}` : ""
       } ${state === "checking" ? "motion-safe:animate-pulse" : ""}`}
     >
       {icon && <Icon name={icon} className="size-4 shrink-0" />}
@@ -142,10 +143,10 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
         const split = SplitText.create(".js-headline", { type: "words,chars", charsClass: "inline-block" });
         const intro = gsap.timeline({ defaults: { ease: "power3.out" } });
         intro
-          .from(split.chars, { rotationX: -95, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.55, stagger: 0.022 })
+          .from(split.chars, { rotationX: -95, transformPerspective: 600, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.55, stagger: 0.022 })
           .from(".js-lede", { y: 18, autoAlpha: 0, duration: 0.6 }, "-=0.35")
           .from(".js-board-head", { autoAlpha: 0, duration: 0.4 }, "-=0.3")
-          .from(".js-board li", { rotationX: -80, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.5, stagger: 0.07 }, "-=0.25")
+          .from(".js-board li", { rotationX: -80, transformPerspective: 900, transformOrigin: "50% 0%", autoAlpha: 0, duration: 0.5, stagger: 0.07 }, "-=0.25")
           .from(".js-board-foot", { y: 12, autoAlpha: 0, duration: 0.4 }, "-=0.2");
 
         // Leaving the hero, the board recedes like a platform falling behind the train.
@@ -156,7 +157,23 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
           scrollTrigger: { trigger: boardRef.current, start: "top top", end: "bottom top", scrub: true },
         });
 
+        // Then the board itself tips back in 3D, like a station sign seen from below as you walk under it.
+        gsap.to(".js-tilt-scroll", {
+          rotationX: 7,
+          transformPerspective: 2000,
+          transformOrigin: "50% 0%",
+          ease: "none",
+          scrollTrigger: { trigger: boardRef.current, start: "top top", end: "bottom top", scrub: true },
+        });
+
         return () => split.revert();
+      });
+
+      // The board is a physical sign: it leans toward the pointer, with a glare that follows it.
+      mm.add(TILT_OK, () => {
+        const panel = boardRef.current?.querySelector<HTMLElement>(".js-tilt");
+        if (!panel || !boardRef.current) return;
+        return attachTilt(panel, { surface: boardRef.current, maxX: 2, maxY: 3, perspective: 2000 });
       });
     },
     { scope: boardRef },
@@ -202,7 +219,7 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
   const hangingId = allRows.find((row) => row.state === "staff")?.id;
 
   return (
-    <section ref={boardRef} aria-labelledby="board-title" className="led-field overflow-hidden bg-board text-board-ink perspective-distant">
+    <section ref={boardRef} aria-labelledby="board-title" className="led-field overflow-hidden bg-board text-board-ink">
       <div className="js-board-stage mx-auto max-w-6xl origin-top px-4 pt-10 pb-6 sm:px-10 sm:pt-12">
         <div className="flex items-start justify-between gap-6">
           <h1 id="board-title" className="js-headline max-w-[16ch] text-5xl leading-[0.98] font-bold tracking-[-0.035em] text-wrap sm:text-7xl lg:text-[5rem]">
@@ -216,13 +233,17 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
           OmniDesk answers customers only from a business&apos;s approved knowledge. When that knowledge runs out, the question goes to a person instead of a guess.
         </p>
 
-        <div className="js-board-head mt-10 hidden grid-cols-[4.5rem_1fr_12rem_9.5rem] gap-x-4 pb-2 text-xs font-bold tracking-wide text-board-ink-2 uppercase sm:grid lg:grid-cols-[4.5rem_1fr_15rem_9.5rem]">
+        <div className="js-tilt-scroll mt-10">
+        <div className="js-tilt relative rounded-sm border border-board-rule bg-board-2/40 px-4 pt-3 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_50px_90px_-40px_rgba(0,0,0,0.9)] sm:px-6 sm:pt-5">
+        {/* Glare: a soft light that follows the pointer across the sign (position from attachTilt). */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-sm bg-[radial-gradient(520px_circle_at_var(--gx,50%)_var(--gy,0%),rgba(255,255,255,0.07),transparent_45%)]" />
+        <div className="js-board-head hidden grid-cols-[4.5rem_1fr_12rem_9.5rem] gap-x-4 pb-2 text-xs font-bold tracking-wide text-board-ink-2 uppercase sm:grid lg:grid-cols-[4.5rem_1fr_15rem_9.5rem]">
           <span>Time</span>
           <span>Customer question</span>
           <span>Answered from</span>
           <span className="text-right">Status</span>
         </div>
-        <ol className="js-board mt-8 transform-3d sm:mt-0" aria-label="Departure board of customer questions" aria-live="off">
+        <ol className="js-board mt-2 sm:mt-0" aria-label="Departure board of customer questions" aria-live="off">
           {allRows.map((row, index) => (
             <Row
               key={row.id}
@@ -268,6 +289,8 @@ export default function DepartureBoard({ demoOrganizationId }: { demoOrganizatio
               </Link>
             </div>
           )}
+        </div>
+        </div>
         </div>
       </div>
     </section>
